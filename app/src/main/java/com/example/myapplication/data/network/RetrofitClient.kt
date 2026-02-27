@@ -8,29 +8,30 @@ import retrofit2.http.Body
 import retrofit2.http.POST
 import java.util.concurrent.TimeUnit
 
-// --- MODELOS DE DATOS (Para evitar errores de importación) ---
+// --- MODELOS DE DATOS (Sincronizados con tus CURLs) ---
 data class AuthAppRequest(val username: String, val password: String)
+data class AuthRequest(val user: String, val password: String)
 data class AuthResponse(val token: String)
 data class AccessRequest(val user: String)
-data class AdminResponse(val access: Boolean)
-data class SourceRequest(val source: String)
-data class CorteResponse(val data: List<CorteData>)
-data class CorteData(val id: Int, val user: String, val description: String, val state: Int)
-data class CorteRequest(val id: Int?, val user: String, val i: String, val state: Int, val description: String)
+data class AccessResponse(val access: Boolean, val msj: String, val status: Int)
+data class SourceRequest(val data: String = "{}")
+data class CorteRequest(val id: Int? = null, val user: String, val i: String, val description: String? = null, val state: Int? = null, val reopen: Int = 0)
+data class CorteSourceResponse(val count: Int, val data: List<CorteData>, val error: Boolean, val msj: String, val status: Int)
+data class CorteData(val id: Int, val user: String, val description: String, val start_day: String?, val end_date: String?, val state: Int, val reopen: Int)
 
 // --- INTERFAZ API ---
 interface ApiService {
-    @POST("kioskorem/api/v1/autenticate")
+    @POST("autenticate")
     suspend fun autenticateApp(@Body request: AuthAppRequest): retrofit2.Response<AuthResponse>
 
-    @POST("kioskorem/api/v1/rol/source/is_admin")
-    suspend fun checkIsAdmin(@Body request: AccessRequest): retrofit2.Response<AdminResponse>
+    @POST("rol/source/is_admin")
+    suspend fun checkIsAdmin(@Body request: AccessRequest): retrofit2.Response<AccessResponse>
 
-    @POST("kioskorem/api/v1/corte/source")
-    suspend fun getCortesSource(@Body request: SourceRequest): retrofit2.Response<CorteResponse>
+    @POST("corte/source")
+    suspend fun getCortesSource(@Body request: SourceRequest): retrofit2.Response<CorteSourceResponse>
 
-    @POST("kioskorem/api/v1/corte/escribir")
-    suspend fun escribirCorte(@Body request: CorteRequest): retrofit2.Response<Unit>
+    @POST("corte/write")
+    suspend fun escribirCorte(@Body request: CorteRequest): retrofit2.Response<Any>
 }
 
 // --- CLIENTE RETROFIT ---
@@ -42,11 +43,12 @@ object RetrofitClient {
             val client = OkHttpClient.Builder()
                 .connectTimeout(20, TimeUnit.SECONDS)
                 .readTimeout(20, TimeUnit.SECONDS)
-                .addInterceptor(AuthInterceptor(context)) // Asegúrate que AuthInterceptor ya use SessionManager
+                .addInterceptor(AuthInterceptor(context))
                 .build()
 
             retrofit = Retrofit.Builder()
-                .baseUrl("http://172.17.0.1:5000/") // Ajusta a tu IP de Docker/Servidor
+                // Usamos el host definido en NetworkConfig
+                .baseUrl(NetworkConfig.BASE_URL)
                 .client(client)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()

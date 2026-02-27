@@ -4,62 +4,41 @@ import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.example.myapplication.data.network.RetrofitClient
+import com.example.myapplication.data.network.*
 import com.example.myapplication.data.session.SessionManager
-import com.example.myapplication.ui.home.HomeFragment
 import com.example.myapplication.ui.login.LoginFragment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// --- CLASES DE DATOS PARA EVITAR ERROR DE IMPORTACIÓN ---
-data class AuthAppRequest(val username: String, val password: String)
-data class AuthResponse(val token: String)
-
 class MainActivity : AppCompatActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        setContentView(R.id.main_container)
 
-        // Inicializar Red con el Contexto
         RetrofitClient.init(applicationContext)
-
-        // Ejecutar primer CURL: Autenticación de App
-        obtenerTokenDeAplicacion()
+        autenticarAppDefault()
     }
 
-    private fun obtenerTokenDeAplicacion() {
+    private fun autenticarAppDefault() {
         lifecycleScope.launch {
             try {
-                // Credenciales exactas de tu CURL
-                val request = AuthAppRequest(
-                    username = "app-movile-001",
-                    password = "Zsh4cvz4tvGyQa56P"
-                )
-
+                val request = AuthAppRequest("app-movile-001", "Zsh4cvz4tvGyQa56P")
                 val response = withContext(Dispatchers.IO) {
                     RetrofitClient.instance.autenticateApp(request)
                 }
 
                 if (response.isSuccessful && response.body() != null) {
-                    val tokenRecibido = response.body()?.token ?: ""
+                    val token = response.body()!!.token
+                    SessionManager(this@MainActivity).saveToken(token)
+                    Log.d("AUTH", "✅ Token JWT obtenido")
 
-                    // Guardar JWT en SessionManager
-                    SessionManager(this@MainActivity).saveToken(tokenRecibido)
-                    Log.d("AUTH", "✅ Token JWT guardado")
-
-                    // Cargar LoginFragment después de obtener token
-                    if (savedInstanceState == null) {
-                        supportFragmentManager.beginTransaction()
-                            .replace(R.id.main_container, LoginFragment())
-                            .commit()
-                    }
-                } else {
-                    Log.e("AUTH", "❌ Error 401/500 en /autenticate")
+                    supportFragmentManager.beginTransaction()
+                        .replace(R.id.main_container, LoginFragment())
+                        .commit()
                 }
             } catch (e: Exception) {
-                Log.e("AUTH", "❌ Fallo de red: ${e.message}")
+                Log.e("AUTH", "❌ Error conexión: ${e.message}")
             }
         }
     }
