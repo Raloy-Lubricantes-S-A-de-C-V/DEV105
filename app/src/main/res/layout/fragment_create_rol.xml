@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbarRol"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorPrimary"
+        app:title="Crear Rol"
+        app:titleTextColor="@android:color/white" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="24dp">
+
+            <EditText
+                android:id="@+id/etUserEmail"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Correo del Usuario"
+                android:inputType="textEmailAddress" />
+
+            <CheckBox android:id="@+id/cbSys" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Permiso Sistema (sys)" />
+            <CheckBox android:id="@+id/cbAdmin" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Permiso Administrador (admin)" />
+            <CheckBox android:id="@+id/cbNormal" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Permiso Normal" />
+
+            <Button
+                android:id="@+id/btnCrearRol"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="CREAR ROL" />
+            <Button
+                android:id="@+id/btnEliminarRol"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="ELIMINAR ROL"
+                android:textColor="#FF0000"
+                app:strokeColor="#FF0000"
+                android:visibility="gone" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="20dp"
+                android:background="#CCCCCC" />
+
+            <Button
+                android:id="@+id/btnRefreshTable"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:text="🔄 Actualizar Tabla" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvRoles"
+                android:layout_width="match_parent"
+                android:layout_height="400dp"
+                android:layout_marginTop="8dp" />
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
