@@ -21,7 +21,6 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
     private val binding get() = _binding!!
     private lateinit var rolAdapter: RolAdapter
 
-    // ✅ Nueva variable para controlar permisos de edición/borrado
     private var isSysUser: Boolean = false
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -37,8 +36,6 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
         val userEmail = sessionManager.getUsername() ?: ""
 
         setupTable()
-
-        // ✅ Carga de permisos y datos iniciales
         validarPermisosSys(userEmail)
         cargarTabla()
 
@@ -54,7 +51,6 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
         }
     }
 
-    // ✅ Nueva función para validar permisos "detrás de escena"
     private fun validarPermisosSys(email: String) {
         if (email.isEmpty()) return
         viewLifecycleOwner.lifecycleScope.launch {
@@ -62,7 +58,6 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
                 val response = RetrofitClient.instance.checkIsSys(AccessRequest(email))
                 if (response.isSuccessful) {
                     isSysUser = response.body()?.access ?: false
-                    Log.d("PERMISOS", "Permisos SYS (Update/Delete): $isSysUser")
                 }
             } catch (e: Exception) {
                 Log.e("PERMISOS", "Error al validar SYS: ${e.message}")
@@ -77,10 +72,8 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
             binding.cbAdmin.isChecked = rolSeleccionado.admin == 1
             binding.cbNormal.isChecked = rolSeleccionado.normal == 1
 
-            // Activar Modo Edición
             binding.etUserEmail.isEnabled = false
 
-            // ✅ Lógica de protección basada en isSysUser
             if (isSysUser) {
                 binding.btnCrearRol.text = "ACTUALIZAR ROL"
                 binding.btnCrearRol.isEnabled = true
@@ -89,7 +82,7 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
                 binding.btnCrearRol.text = "MODO LECTURA"
                 binding.btnCrearRol.isEnabled = false
                 binding.btnEliminarRol.visibility = View.GONE
-                Toast.makeText(requireContext(), "No tienes permisos para modificar este registro", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "No tienes permisos de edición", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -120,7 +113,8 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
             binding.btnEliminarRol.isEnabled = false
 
             try {
-                val response = RetrofitClient.instance.crearOActualizarRol(request)
+                // ✅ CORRECCIÓN: Se cambió 'crearOActualizarRol' por 'escribirRol' para coincidir con ApiService
+                val response = RetrofitClient.instance.escribirRol(request)
 
                 if (response.isSuccessful) {
                     val msg = when(request.i) {
@@ -135,13 +129,9 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
                 } else {
                     Toast.makeText(requireContext(), "❌ Error: ${response.code()}", Toast.LENGTH_SHORT).show()
                 }
-            } catch (e: IOException) {
-                AuthInterceptor.resetToken()
-                Toast.makeText(requireContext(), "📡 Error de red, intente de nuevo", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Toast.makeText(requireContext(), "⚠️ Fallo: ${e.message}", Toast.LENGTH_SHORT).show()
             } finally {
-                // Solo rehabilitamos si sigue siendo un usuario con permisos o si volvió a modo "Crear"
                 binding.btnCrearRol.isEnabled = true
                 if (isSysUser && binding.btnEliminarRol.visibility == View.VISIBLE) {
                     binding.btnEliminarRol.isEnabled = true
@@ -153,7 +143,7 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
     private fun cargarTabla() {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val response = RetrofitClient.instance.getRolesSource(SourceRequest("Refresco"))
+                val response = RetrofitClient.instance.getRolesSource(SourceRequest("{}"))
                 if (response.isSuccessful && response.body() != null) {
                     rolAdapter.updateData(response.body()!!.data)
                 }
@@ -169,9 +159,7 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
         binding.cbSys.isChecked = false
         binding.cbAdmin.isChecked = false
         binding.cbNormal.isChecked = false
-
         binding.btnCrearRol.text = "CREAR ROL"
-        binding.btnCrearRol.isEnabled = true
         binding.btnEliminarRol.visibility = View.GONE
     }
 

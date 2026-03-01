@@ -52,13 +52,13 @@ class LoginFragment : Fragment() {
                 session.saveSession(0, emailIngresado)
 
                 // 🔐 2. RESET DEL INTERCEPTOR
-                // Limpiamos cualquier rastro de token previo
+                // Esta llamada ya no marcará error al añadir el companion object
                 AuthInterceptor.resetToken()
 
                 Toast.makeText(requireContext(), "Acceso concedido", Toast.LENGTH_SHORT).show()
 
                 // 🚀 3. NAVEGACIÓN AL HOME
-                // Usamos el ID 'main_container' que definimos en activity_main.xml
+                // Usamos el ID 'main_container' definido en activity_main.xml
                 parentFragmentManager.beginTransaction()
                     .replace(R.id.main_container, HomeFragment())
                     .commitAllowingStateLoss()

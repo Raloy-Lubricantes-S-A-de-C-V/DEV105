@@ -14,14 +14,14 @@ import kotlinx.coroutines.withContext
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.id.main_container)
+        setContentView(R.layout.activity_main) // ✅ Referencia corregida
 
         RetrofitClient.init(applicationContext)
-        autenticarAppDefault()
+        autenticarAppDefault(savedInstanceState)
     }
 
-    private fun autenticarAppDefault() {
-        lifecycleScope.launch {
+    private fun autenticarAppDefault(savedInstanceState: Bundle?) {
+        lifecycleScope.launch(Dispatchers.Main) {
             try {
                 val request = AuthAppRequest("app-movile-001", "Zsh4cvz4tvGyQa56P")
                 val response = withContext(Dispatchers.IO) {
@@ -29,16 +29,20 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 if (response.isSuccessful && response.body() != null) {
-                    val token = response.body()!!.token
-                    SessionManager(this@MainActivity).saveToken(token)
-                    Log.d("AUTH", "✅ Token JWT obtenido")
+                    val token = response.body()?.token ?: ""
+                    if (token.isNotEmpty()) {
+                        SessionManager(this@MainActivity).saveToken(token)
+                        Log.d("ODOO AUTH", ">>> RED: Token JWT obtenido con éxito")
+                    }
 
-                    supportFragmentManager.beginTransaction()
-                        .replace(R.id.main_container, LoginFragment())
-                        .commit()
+                    if (savedInstanceState == null) {
+                        supportFragmentManager.beginTransaction()
+                            .replace(R.id.main_container, LoginFragment())
+                            .commitNowAllowingStateLoss()
+                    }
                 }
             } catch (e: Exception) {
-                Log.e("AUTH", "❌ Error conexión: ${e.message}")
+                Log.e("ODOO AUTH", ">>> RED ERROR: ${e.message}")
             }
         }
     }

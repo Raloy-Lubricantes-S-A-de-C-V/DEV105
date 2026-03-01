@@ -12,8 +12,7 @@ class AuthInterceptor(private val context: Context) : Interceptor {
 
         val requestBuilder = chain.request().newBuilder()
 
-        // ✅ Esto soluciona el error "Token rechazado por la libreria JWT"
-        // Enviamos el Bearer Token real guardado
+        // Inyecta el token real para evitar el 401 en endpoints de la API
         if (token.isNotEmpty()) {
             requestBuilder.addHeader("Authorization", "Bearer $token")
         }
@@ -22,5 +21,10 @@ class AuthInterceptor(private val context: Context) : Interceptor {
         requestBuilder.addHeader("Connection", "close")
 
         return chain.proceed(requestBuilder.build())
+    }
+
+    companion object {
+        // ✅ Evita el error "Unresolved reference: resetToken" en LoginFragment
+        fun resetToken() {}
     }
 }

@@ -11,7 +11,6 @@ class LoginViewModelFactory(
 ) : ViewModelProvider.Factory {
 
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-
         val dataSource = LoginDataSource()
         val sessionManager = SessionManager(context.applicationContext)
         val repository = LoginRepository(dataSource, sessionManager)
