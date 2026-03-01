@@ -16,62 +16,71 @@ import kotlinx.coroutines.*
 class HomeFragment : Fragment(R.layout.fragment_home) {
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
+
     private val MAX_INTENTOS = 3
-    private lateinit var cortesAdapter: CortesHomeAdapter
+    private val DELAY_REINTENTO = 5000L
+    private lateinit var sessionManager: SessionManager
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentHomeBinding.bind(view)
+        sessionManager = SessionManager(requireContext())
+
         setupRecyclerView()
         iniciarCicloValidacion()
     }
 
     private fun iniciarCicloValidacion() {
-        val email = SessionManager(requireContext()).getUsername() ?: ""
-
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+            var exitoso = false
             for (intento in 1..MAX_INTENTOS) {
                 if (_binding == null) break
                 binding.loader.visibility = View.VISIBLE
-                binding.tvStatusError.visibility = View.GONE
 
                 try {
                     val response = withContext(Dispatchers.IO) {
-                        RetrofitClient.instance.checkIsAdmin(AccessRequest(email))
+                        RetrofitClient.instance.verificarSesion()
                     }
-
                     if (response.isSuccessful) {
-                        val isAdmin = response.body()?.access ?: false
-                        binding.sectionCortesAbiertos.visibility = if (isAdmin) View.VISIBLE else View.GONE
-                        binding.loader.visibility = View.GONE
-                        return@launch
-                    } else if (response.code() == 401) {
-                        doLogout("No autorizado (401)")
-                        return@launch
+                        exitoso = true
+                        break
                     }
                 } catch (e: Exception) { }
 
                 if (intento < MAX_INTENTOS) {
                     binding.loader.visibility = View.GONE
-                    delay(10000)
-                } else {
-                    doLogout("Error de conexión tras 3 intentos")
+                    delay(DELAY_REINTENTO)
                 }
+            }
+
+            if (exitoso) {
+                binding.loader.visibility = View.GONE
+                binding.welcomeText.text = "Bienvenido: ${sessionManager.getUsername()}"
+            } else {
+                doLogout("Error de validación tras 3 intentos.")
             }
         }
     }
 
+    private fun setupRecyclerView() {
+        val adapter = CortesHomeAdapter(
+            onItemSelected = { corte: CorteData -> },
+            onActionClick = { corte: CorteData, accion: Int -> }
+        )
+        binding.rvCortesAbiertos.layoutManager = LinearLayoutManager(requireContext())
+        binding.rvCortesAbiertos.adapter = adapter
+    }
+
     private fun doLogout(msj: String) {
-        SessionManager(requireContext()).clearSession()
+        sessionManager.clearSession()
         Toast.makeText(requireContext(), msj, Toast.LENGTH_LONG).show()
         parentFragmentManager.beginTransaction()
             .replace(R.id.main_container, LoginFragment())
             .commitAllowingStateLoss()
     }
 
-    private fun setupRecyclerView() {
-        cortesAdapter = CortesHomeAdapter({}, { _, _ -> })
-        binding.rvCortesAbiertos.layoutManager = LinearLayoutManager(requireContext())
-        binding.rvCortesAbiertos.adapter = cortesAdapter
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 }

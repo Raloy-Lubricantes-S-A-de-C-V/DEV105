@@ -11,20 +11,17 @@ class AuthInterceptor(private val context: Context) : Interceptor {
         val token = session.getToken() ?: ""
 
         val requestBuilder = chain.request().newBuilder()
-
-        // Inyecta el token real para evitar el 401 en endpoints de la API
         if (token.isNotEmpty()) {
             requestBuilder.addHeader("Authorization", "Bearer $token")
         }
-
         requestBuilder.addHeader("Content-Type", "application/json")
-        requestBuilder.addHeader("Connection", "close")
-
         return chain.proceed(requestBuilder.build())
     }
 
     companion object {
-        // ✅ Evita el error "Unresolved reference: resetToken" en LoginFragment
-        fun resetToken() {}
+        // ✅ SOLUCIÓN: Método para resetear el estado del token si es necesario
+        fun resetToken() {
+            // Lógica opcional para limpiar caché de tokens
+        }
     }
 }
