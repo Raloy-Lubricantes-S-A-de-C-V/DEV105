@@ -15,11 +15,9 @@ class AuthInterceptor(private val context: Context) : Interceptor {
             requestBuilder.addHeader("Authorization", "Bearer $token")
         }
 
-        // 🔥 CAMBIO CRÍTICO: "close" en lugar de "Keep-Alive".
-        // Esto evita el error "unexpected end of stream" forzando al motor a
-        // no reutilizar sockets viejos que el servidor Flask ya dio por cerrados.
+        // 🔥 CAMBIO CRÍTICO: "Connection: close"
+        // Le dice explícitamente a Flask/Odoo que NO mantenga vivo el socket.
         requestBuilder.addHeader("Connection", "close")
-        requestBuilder.addHeader("Accept-Encoding", "identity")
 
         return chain.proceed(requestBuilder.build())
     }

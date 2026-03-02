@@ -24,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 
 class HomeFragment : Fragment(R.layout.fragment_home) {
@@ -54,8 +55,6 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         setupCheckInModule()
 
         binding.btnRefreshCortes.setOnClickListener { iniciarFlujoDeCarga() }
-
-        // 🔥 CAMBIO CRÍTICO: Botón manual para refrescar la tabla de CheckIn
         binding.btnRefreshCheckInTable.setOnClickListener { cargarTablaCheckIn() }
 
         iniciarFlujoDeCarga()
@@ -94,7 +93,6 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         }
     }
 
-    // 🔥 CAMBIO CRÍTICO: Resizer de imagen para evitar caídas del socket de Flask (Unexpected end of stream)
     private fun resizeBitmap(source: Bitmap, maxLength: Int): Bitmap {
         try {
             if (source.width <= maxLength && source.height <= maxLength) return source
@@ -105,7 +103,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 Bitmap.createScaledBitmap(source, maxLength, (maxLength / aspectRatio).toInt(), false)
             }
         } catch (e: Exception) {
-            return source // Si falla, regresa original
+            return source
         }
     }
 
@@ -115,12 +113,11 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             binding.tvLoadingTitle.text = "REGISTRANDO DOCUMENTO..."
 
             try {
-                // Comprime y reduce el tamaño de 1MB a ~50KB
                 val base64Image = withContext(Dispatchers.Default) {
-                    val resizedBmp = resizeBitmap(bitmap, 800) // Máximo 800px
+                    val resizedBmp = resizeBitmap(bitmap, 600)
                     val baos = ByteArrayOutputStream()
-                    resizedBmp.compress(Bitmap.CompressFormat.JPEG, 60, baos)
-                    Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT)
+                    resizedBmp.compress(Bitmap.CompressFormat.JPEG, 50, baos)
+                    Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
                 }
 
                 val request = CheckInRequest(
@@ -133,24 +130,52 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 val response = withContext(Dispatchers.IO) { RetrofitClient.instance.escribirCheckIn(request) }
 
                 if (response.isSuccessful && response.body()?.error == false) {
-                    currentCheckInId = response.body()?.result
+                    // 🔥 EXTRACCIÓN AGRESIVA DEL ID:
+                    // Convierte lo que sea que mande Flask en un Int puro para Kotlin.
+                    val rawResult = response.body()?.result
+                    currentCheckInId = when (rawResult) {
+                        is Number -> rawResult.toInt()
+                        is String -> rawResult.replace(Regex("[^0-9]"), "").toIntOrNull()
+                        is List<*> -> (rawResult.firstOrNull() as? Number)?.toInt()
+                        else -> null
+                    }
+
                     currentAlbaranName = response.body()?.albaran
+
+                    Log.i(TAG, "✅ Documento registrado. ID Parseado: $currentCheckInId | Raw: $rawResult")
+
+                    if (currentCheckInId == null) {
+                        Log.e(TAG, "❌ FATAL: El servidor retornó éxito pero no pudimos extraer el ID ($rawResult).")
+                        Toast.makeText(requireContext(), "Error de sistema: ID perdido", Toast.LENGTH_LONG).show()
+                        resetUIState()
+                        return@launch
+                    }
 
                     binding.btnRegistrarDoc.visibility = View.GONE
                     binding.btnValidarCheckIn.visibility = View.VISIBLE
                     binding.btnValidarCheckIn.isEnabled = true
 
-                    // 🔥 Respiro ampliado a Odoo para evitar Race Condition
-                    delay(1200)
+                    delay(1000)
                     cargarTablaCheckIn()
                 } else {
-                    Toast.makeText(requireContext(), "Fallo en registro: ${response.body()?.msj}", Toast.LENGTH_LONG).show()
-                    binding.btnRegistrarDoc.isEnabled = true
+                    var msjError = response.body()?.msj
+                    if (!response.isSuccessful && response.errorBody() != null) {
+                        try {
+                            val errorString = response.errorBody()!!.string()
+                            val jsonError = JSONObject(errorString)
+                            msjError = jsonError.optString("msj", "No se detectó un patrón válido")
+                        } catch (e: Exception) {
+                            msjError = "Error de servidor: HTTP ${response.code()}"
+                        }
+                    }
+                    Log.w(TAG, "⚠️ Documento rechazado por OCR/Servidor: $msjError")
+                    Toast.makeText(requireContext(), "Rechazado: ${msjError ?: "Fallo de validación"}", Toast.LENGTH_LONG).show()
+                    resetUIState()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Excepción en red: ${e.message}")
+                Log.e(TAG, "❌ Excepción de red detectada: ${e.message}")
                 Toast.makeText(requireContext(), "Fallo de red al registrar.", Toast.LENGTH_SHORT).show()
-                binding.btnRegistrarDoc.isEnabled = true
+                resetUIState()
             } finally {
                 binding.overlayLoading.visibility = View.GONE
             }
@@ -172,11 +197,23 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         val operacion = if (isConfirmed) "U" else "D"
         val confirmFlag = if (isConfirmed) 1 else null
 
+        // 🔥 BARRERA DE SEGURIDAD ABSOLUTA
+        if (currentCheckInId == null) {
+            Log.e(TAG, "❌ Intento de confirmar/eliminar bloqueado. currentCheckInId es NULL.")
+            Toast.makeText(requireContext(), "Error crítico: No hay ID seleccionado.", Toast.LENGTH_SHORT).show()
+            binding.btnValidarCheckIn.isEnabled = true
+            return
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
             binding.overlayLoading.visibility = View.VISIBLE
             binding.tvLoadingTitle.text = if (isConfirmed) "CONFIRMANDO..." else "ELIMINANDO..."
 
+            var operacionExitosa = false
+
             try {
+                Log.d(TAG, "🚀 Petición de validación lista. Enviando -> ID: $currentCheckInId | operacion: $operacion | confirm: $confirmFlag")
+
                 val request = CheckInRequest(
                     id = currentCheckInId,
                     user = sessionManager.getUsername() ?: "",
@@ -189,20 +226,28 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 if (response.isSuccessful) {
                     val msj = if (isConfirmed) "✅ CheckIn Confirmado" else "🗑️ CheckIn Eliminado"
                     Toast.makeText(requireContext(), msj, Toast.LENGTH_SHORT).show()
-
-                    resetUIState()
-
-                    // 🔥 Respiro ampliado a 1200ms
-                    delay(1200)
-                    cargarTablaCheckIn()
+                    operacionExitosa = true
+                    delay(800)
                 } else {
+                    Log.e(TAG, "❌ Fallo HTTP en validación. Code: ${response.code()}")
                     Toast.makeText(requireContext(), "Error al contactar base de datos", Toast.LENGTH_SHORT).show()
                     binding.btnValidarCheckIn.isEnabled = true
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "❌ Error de red durante la confirmación: ${e.message}")
+                Toast.makeText(requireContext(), "Fallo de conexión", Toast.LENGTH_SHORT).show()
                 binding.btnValidarCheckIn.isEnabled = true
             } finally {
                 binding.overlayLoading.visibility = View.GONE
+
+                if (operacionExitosa) {
+                    if (isConfirmed) {
+                        resetUIState()
+                        cargarTablaCheckIn()
+                    } else {
+                        iniciarFlujoDeCarga()
+                    }
+                }
             }
         }
     }
@@ -231,10 +276,16 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 if (cortesRes.isSuccessful && cortesRes.body() != null) {
                     val cortesActivos = cortesRes.body()!!.data.filter { it.state == 1 }
                     cortesAdapter.updateData(cortesActivos)
+
                     corteSeleccionado = null
                     binding.tvCorteSeleccionado.text = "Selecciona un corte ↑"
                     binding.btnCheckInRemision.isEnabled = false
+
                     resetUIState()
+
+                    if (::checkInAdapter.isInitialized) {
+                        checkInAdapter.updateData(emptyList())
+                    }
                 }
             }
         }, { logout() })
@@ -245,8 +296,9 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                // Cambio estético para que se note la carga
                 binding.btnRefreshCheckInTable.alpha = 0.5f
+                checkInAdapter.updateData(emptyList())
+
                 val response = withContext(Dispatchers.IO) { RetrofitClient.instance.getCheckInSource(SourceRequest("{}")) }
                 if (response.isSuccessful && response.body() != null) {
                     val filtrados = response.body()!!.data.filter { it.corte_id == corteSeleccionado?.id }

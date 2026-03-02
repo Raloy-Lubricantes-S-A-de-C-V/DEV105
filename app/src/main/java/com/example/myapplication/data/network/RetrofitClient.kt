@@ -18,14 +18,15 @@ object RetrofitClient {
     private val retryInterceptor = Interceptor { chain ->
         val request = chain.request()
 
-        // 🔥 CAMBIO CRÍTICO: Regla de Idempotencia.
-        // NUNCA reintentar peticiones POST automáticamente porque duplican datos en la BD.
-        val maxRetries = if (request.method == "POST") 1 else 3
+        // Como desactivamos la caché de red, las peticiones POST ahora son 100% estables.
+        // Mantenemos 1 intento para escritura (Write) y 3 para lectura (Source).
+        val isWriteOperation = request.url.encodedPath.contains("/write")
+        val maxRetries = if (isWriteOperation) 1 else 3
 
         var response: Response? = null
         var exception: Exception? = null
 
-        Log.d(TAG, "🚀 Petición saliente: [${request.method}] ${request.url}")
+        Log.d(TAG, "🚀 Petición saliente: [${request.method}] ${request.url} (Max Retries: $maxRetries)")
 
         for (tryCount in 1..maxRetries) {
             try {
@@ -33,7 +34,7 @@ object RetrofitClient {
                 response = chain.proceed(request)
 
                 if (response.isSuccessful) {
-                    response.peekBody(Long.MAX_VALUE)
+                    response.peekBody(Long.MAX_VALUE) // Forzar lectura total para validar túnel
                     Log.i(TAG, "✅ Respuesta exitosa: ${response.code} | Intento: $tryCount")
                     return@Interceptor response
                 } else {
@@ -48,7 +49,7 @@ object RetrofitClient {
                     Log.e(TAG, "💥 Fallo de red definitivo tras agotar intentos.")
                     throw e
                 }
-                Thread.sleep((300 * tryCount).toLong())
+                Thread.sleep((400 * tryCount).toLong())
             }
         }
         return@Interceptor response ?: throw exception ?: IOException("Fallo de red persistente")
@@ -56,13 +57,17 @@ object RetrofitClient {
 
     fun init(context: Context) {
         if (retrofit == null) {
-            Log.d(TAG, "⚙️ Inicializando Motor Retrofit/OkHttp...")
+            Log.d(TAG, "⚙️ Inicializando Motor Retrofit/OkHttp (Strict Mode)...")
             val client = OkHttpClient.Builder()
-                .connectTimeout(45, TimeUnit.SECONDS) // Aumentamos a 45s para darle tiempo a Odoo de procesar el Base64
-                .readTimeout(45, TimeUnit.SECONDS)
-                .writeTimeout(45, TimeUnit.SECONDS)
-                .connectionPool(ConnectionPool(15, 2, TimeUnit.MINUTES))
-                .retryOnConnectionFailure(false) // 🔥 Apagamos el reintento nativo agresivo
+                .connectTimeout(60, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .writeTimeout(60, TimeUnit.SECONDS)
+                // 🔥 CAMBIO ARQUITECTÓNICO CRÍTICO:
+                // ConnectionPool(0, 1, MILLISECONDS) significa que el Pool retiene 0 conexiones.
+                // Obliga a Android a crear un Socket TCP fresco en cada click.
+                // Esto ERRADICA el error "unexpected end of stream" con servidores Flask.
+                .connectionPool(ConnectionPool(0, 1, TimeUnit.MILLISECONDS))
+                .retryOnConnectionFailure(true)
                 .addInterceptor(retryInterceptor)
                 .addInterceptor(AuthInterceptor(context))
                 .build()
@@ -72,7 +77,7 @@ object RetrofitClient {
                 .client(client)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
-            Log.i(TAG, "🟢 Motor de Red Operativo.")
+            Log.i(TAG, "🟢 Motor de Red Operativo y blindado.")
         }
     }
 

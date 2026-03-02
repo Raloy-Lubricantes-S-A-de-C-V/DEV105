@@ -47,12 +47,13 @@ data class CheckInData(
 
 data class CheckInSourceResponse(val count: Int, val data: List<CheckInData>, val error: Boolean, val msj: String, val status: Int)
 
-// 🔥 CAMBIO CRÍTICO: Ajustado a la nueva respuesta del backend (result = ID, albaran = nombre)
 data class CheckInWriteResponse(
     val error: Boolean?,
     val msj: String?,
     val albaran: String?,
-    val result: Int?,
+    // 🔥 CAMBIO CRÍTICO: 'Any?' en lugar de 'Int?'.
+    // Esto evita que Retrofit se rompa si Flask envía un Float (1.0), String ("1") o un Array ([1]).
+    val result: Any?,
     val status: Int?
 )
 
