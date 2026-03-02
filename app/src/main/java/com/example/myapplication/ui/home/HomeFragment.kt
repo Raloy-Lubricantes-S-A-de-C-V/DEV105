@@ -20,6 +20,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Fragmento Principal del Kiosko.
+ * Administra la vista general y permite operar rápidamente Cortes activos.
+ */
 class HomeFragment : Fragment(R.layout.fragment_home) {
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
@@ -48,12 +52,13 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 binding.welcomeText.text = "Bienvenido: $user"
 
                 val adminRes = withContext(Dispatchers.IO) { RetrofitClient.instance.checkIsAdmin(AccessRequest(user)) }
-                delay(200)
+                delay(200) // Freno anti-saturación
                 val cortesRes = withContext(Dispatchers.IO) { RetrofitClient.instance.getCortesSource(SourceRequest("{}")) }
 
                 if (adminRes.isSuccessful && adminRes.body()?.access == true) {
                     binding.sectionCortesAbiertos.visibility = View.VISIBLE
                     if (cortesRes.isSuccessful && cortesRes.body() != null) {
+                        // Filtro de negocio: Mostrar únicamente Cortes Activos
                         val cortesActivos = cortesRes.body()!!.data.filter { it.state == 1 }
                         cortesAdapter.updateData(cortesActivos)
                     }
@@ -84,7 +89,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                     Toast.makeText(requireContext(), "Aviso: Corte modificado previamente", Toast.LENGTH_LONG).show()
                 }
 
-                delay(600)
+                delay(600) // Pausa para permitir Commits en DB
                 iniciarFlujoDeCarga()
 
             } catch (e: Exception) {

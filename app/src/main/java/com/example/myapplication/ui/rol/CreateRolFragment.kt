@@ -18,6 +18,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Fragmento de Gestión de Roles de Usuario.
+ * Restringe su funcionamiento completo únicamente a usuarios con privilegios Sys (Sistema).
+ */
 class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
 
     private var _binding: FragmentCreateRolBinding? = null
@@ -49,7 +53,7 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
                 val userEmail = sessionManager.getUsername() ?: ""
 
                 val sysRes = withContext(Dispatchers.IO) { RetrofitClient.instance.checkIsSys(AccessRequest(userEmail)) }
-                delay(200)
+                delay(200) // Freno de saturación
                 val rolesRes = withContext(Dispatchers.IO) { RetrofitClient.instance.getRolesSource(SourceRequest("{}")) }
 
                 if (sysRes.isSuccessful) isSysUser = sysRes.body()?.access ?: false
@@ -78,6 +82,10 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
         val request = RolRequest(email, operacion, if (binding.cbSys.isChecked) 1 else 0, if (binding.cbAdmin.isChecked) 1 else 0, if (binding.cbNormal.isChecked) 1 else 0)
 
         viewLifecycleOwner.lifecycleScope.launch {
+            // ✅ Protección Anti-Double-Click
+            binding.btnCrearRol.isEnabled = false
+            binding.btnEliminarRol.isEnabled = false
+
             binding.overlayLoading.visibility = View.VISIBLE
             binding.tvLoadingTitle.text = if (operacion == "D") "ELIMINANDO ROL" else "GUARDANDO ROL"
 
@@ -91,12 +99,14 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
                 }
 
                 limpiarInterfaz()
-                delay(600)
+                delay(600) // Respiro DB
                 iniciarFlujoDeCarga()
 
             } catch (e: Exception) {
                 Log.e("ROL_FLOW", "❌ Fallo escritura: ${e.message}")
                 binding.overlayLoading.visibility = View.GONE
+                binding.btnCrearRol.isEnabled = true
+                if (isSysUser && binding.btnEliminarRol.visibility == View.VISIBLE) binding.btnEliminarRol.isEnabled = true
             }
         }
     }
@@ -108,6 +118,7 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
             binding.cbAdmin.isChecked = item.admin == 1
             binding.cbNormal.isChecked = item.normal == 1
             binding.etUserEmail.isEnabled = false
+
             if (isSysUser) {
                 binding.btnCrearRol.text = "ACTUALIZAR ROL"
                 binding.btnEliminarRol.visibility = View.VISIBLE
@@ -123,7 +134,15 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
         binding.etUserEmail.text?.clear()
         binding.etUserEmail.isEnabled = true
         binding.cbSys.isChecked = false; binding.cbAdmin.isChecked = false; binding.cbNormal.isChecked = false
-        binding.btnCrearRol.text = "CREAR ROL"; binding.btnEliminarRol.visibility = View.GONE
+        binding.btnEliminarRol.visibility = View.GONE
+
+        if (isSysUser) {
+            binding.btnCrearRol.text = "CREAR ROL"
+            binding.btnCrearRol.isEnabled = true
+        } else {
+            binding.btnCrearRol.text = "MODO LECTURA"
+            binding.btnCrearRol.isEnabled = false
+        }
     }
 
     override fun onDestroyView() { super.onDestroyView(); _binding = null }

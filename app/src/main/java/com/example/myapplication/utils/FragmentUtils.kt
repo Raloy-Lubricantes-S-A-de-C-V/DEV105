@@ -10,6 +10,16 @@ import com.example.myapplication.R
 import com.example.myapplication.data.network.RetrofitClient
 import kotlinx.coroutines.*
 
+/**
+ * Función de extensión inyectable para Fragmentos.
+ * Despliega un overlay de bloqueo visual, verifica la sesión con el servidor (con 3 intentos)
+ * y ejecuta funciones asíncronas, protegiendo contra corrupciones de datos (Auto-Refresh).
+ *
+ * @param tituloCarga Texto principal a mostrar en el Loader.
+ * @param logTag Etiqueta para seguimiento en el Logcat.
+ * @param accionCarga Bloque de código Coroutine a ejecutar si la sesión es válida.
+ * @param onFalloSesion Acción a detonar si se agotan los intentos o no hay red.
+ */
 fun Fragment.ejecutarFlujoSeguro(
     tituloCarga: String,
     logTag: String,
@@ -54,45 +64,37 @@ fun Fragment.ejecutarFlujoSeguro(
             var intentosDatos = 0
             val maxIntentosDatos = 3
 
-            // Bucle que hace el "Refresh de Fragment" automático si hay error fatal
             while (intentosDatos < maxIntentosDatos && !datosCargados) {
                 intentosDatos++
 
                 if (intentosDatos == 1) {
                     tvCounter?.text = "Descargando datos y tablas..."
                 } else {
-                    // Notificamos al usuario que estamos auto-recargando el fragmento
                     tvCounter?.text = "Recargando fragmento... (Auto-Refresh $intentosDatos/$maxIntentosDatos)"
                     Log.w(logTag, "🔄 Ejecutando Auto-Refresh del fragmento...")
                 }
 
-                delay(500) // Respiro para desatascar Flask
+                delay(500) // Respiro para desatascar el backend
 
                 try {
                     coroutineScope { accionCarga() }
-                    datosCargados = true // Éxito: marcamos bandera para salir del bucle
+                    datosCargados = true // Se marca como exitoso y rompe el ciclo
                 } catch (e: Exception) {
                     Log.e(logTag, "❌ Error fatal al descargar datos: ${e.message}")
 
                     if (intentosDatos >= maxIntentosDatos) {
-                        // Si falla los 3 refresh automáticos, avisamos y liberamos la pantalla
                         Toast.makeText(
                             requireContext(),
                             "Servidor saturado. Usa el botón de actualizar tabla.",
                             Toast.LENGTH_LONG
                         ).show()
                     } else {
-                        // Espera de 1.5s antes del siguiente Auto-Refresh
                         delay(1500)
                     }
                 }
             }
-
-            // Siempre quitamos el candado visual al terminar (haya éxito o no)
             overlay?.visibility = View.GONE
-
         } else {
-            // Fase de Sesión fallida
             overlay?.visibility = View.GONE
             Toast.makeText(requireContext(), "Sesión caducada o sin red", Toast.LENGTH_LONG).show()
             onFalloSesion()

@@ -21,6 +21,11 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
+/**
+ * Fragmento de Gestión de Cortes.
+ * Permite Crear (C), Actualizar (U) y Eliminar (D) registros.
+ * Controla permisos Admin para actualizar estados y permisos Sys para eliminar.
+ */
 class CreateCorteFragment : Fragment(R.layout.fragment_create_corte) {
     private var _binding: FragmentCreateCorteBinding? = null
     private val binding get() = _binding!!
@@ -98,6 +103,10 @@ class CreateCorteFragment : Fragment(R.layout.fragment_create_corte) {
 
     private fun ejecutarEscritura(request: CorteRequest) {
         viewLifecycleOwner.lifecycleScope.launch {
+            // ✅ Protección Anti-Double-Click
+            binding.btnGuardarCorte.isEnabled = false
+            binding.btnEliminarCorte.isEnabled = false
+
             binding.overlayLoading.visibility = View.VISIBLE
             binding.tvLoadingTitle.text = if (request.i == "D") "ELIMINANDO CORTE" else "GUARDANDO CORTE"
 
@@ -111,13 +120,15 @@ class CreateCorteFragment : Fragment(R.layout.fragment_create_corte) {
                 }
 
                 limpiarFormulario()
-                delay(600) // Pausa para permitir que la BD termine su proceso
+                delay(600) // Pausa para DB Commits
                 iniciarFlujoDeCarga()
 
             } catch (e: Exception) {
                 Log.e("CORTE_FLOW", "❌ Fallo escritura: ${e.message}")
                 Toast.makeText(requireContext(), "Fallo de conexión", Toast.LENGTH_SHORT).show()
                 binding.overlayLoading.visibility = View.GONE
+                binding.btnGuardarCorte.isEnabled = true
+                if (isSysUser) binding.btnEliminarCorte.isEnabled = true
             }
         }
     }
@@ -145,6 +156,7 @@ class CreateCorteFragment : Fragment(R.layout.fragment_create_corte) {
     private fun limpiarFormulario() {
         currentCorteId = null
 
+        // Auto-relleno de fecha por turno (< 13hrs = Turno 1)
         val calendar = Calendar.getInstance()
         val formatoFecha = SimpleDateFormat("dd/MM/yy", Locale.getDefault())
         val hora = calendar.get(Calendar.HOUR_OF_DAY)

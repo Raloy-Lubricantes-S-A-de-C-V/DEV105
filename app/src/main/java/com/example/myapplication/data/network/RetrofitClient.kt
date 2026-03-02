@@ -11,10 +11,18 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
+/**
+ * Cliente global de Retrofit optimizado para comunicarse con servidores Flask/Werkzeug.
+ * Implementa una piscina de conexiones y un interceptor de resiliencia para evitar
+ * el error común de "unexpected end of stream".
+ */
 object RetrofitClient {
     private var retrofit: Retrofit? = null
 
-    // ✅ ESCUDO BLINDADO CON BUCLE FOR
+    /**
+     * Escudo Blindado: Atrapa caídas de socket causadas por cierres abruptos del servidor.
+     * Si la red falla o el servidor cierra el tubo, reintenta hasta 3 veces automáticamente.
+     */
     private val retryInterceptor = Interceptor { chain ->
         val request = chain.request()
         var response: Response? = null
@@ -22,23 +30,22 @@ object RetrofitClient {
 
         for (tryCount in 1..3) {
             try {
-                response?.close()
+                response?.close() // Limpia basuras de memoria de intentos previos
                 response = chain.proceed(request)
 
                 if (response.isSuccessful) {
-                    // Forzamos descarga para asegurar el socket
+                    // Fuerza la lectura total para detonar cualquier fallo de socket dentro del Try-Catch
                     response.peekBody(Long.MAX_VALUE)
                     return@Interceptor response
                 } else {
-                    // ✅ CORRECCIÓN MAESTRA: Si es un error 500 o 400, NO reintenta.
-                    // Lo devuelve de inmediato para que la UI lo maneje y no se cicle.
+                    // Si el servidor responde 400 o 500, se devuelve para no ciclar el servidor
                     return@Interceptor response
                 }
             } catch (e: Exception) {
                 exception = e
                 Log.w("NETWORK_RETRY", "⚠️ Socket inactivo. Intento $tryCount/3... (${e.message})")
-                if (tryCount == 3) throw e // Lanza error al último intento
-                Thread.sleep(800) // Respiro de red
+                if (tryCount == 3) throw e // Lanza el error definitivo al último intento
+                Thread.sleep(800) // Respiro de red de 800ms para destrabar el backend
             }
         }
         return@Interceptor response ?: throw exception ?: IOException("Fallo de red persistente")
