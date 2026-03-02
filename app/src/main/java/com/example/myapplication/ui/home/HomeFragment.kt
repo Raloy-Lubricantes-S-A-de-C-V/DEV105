@@ -1,13 +1,19 @@
 package com.example.myapplication.ui.home
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
 import android.view.View
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -26,6 +32,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
+import java.io.File
 
 class HomeFragment : Fragment(R.layout.fragment_home) {
     private var _binding: FragmentHomeBinding? = null
@@ -40,8 +47,49 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private var currentCheckInId: Int? = null
     private var currentAlbaranName: String? = null
 
+    // 🔥 NUEVO: URI para almacenar la foto de ALTA RESOLUCIÓN
+    private var photoUri: Uri? = null
+
     companion object {
         private const val TAG = "DEV105_CHECKIN"
+    }
+
+    // 🔥 LAUNCHER DE ALTA RESOLUCIÓN (Reemplaza al TakePicturePreview)
+    private val takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success: Boolean ->
+        if (success && photoUri != null) {
+            Log.d(TAG, "📸 Foto de ALTA RESOLUCIÓN capturada exitosamente.")
+            currentBitmap?.recycle()
+
+            try {
+                // Decodificamos el archivo de alta resolución en un Bitmap
+                val inputStream = requireContext().contentResolver.openInputStream(photoUri!!)
+                currentBitmap = BitmapFactory.decodeStream(inputStream)
+                inputStream?.close()
+
+                binding.ivCheckInPhoto.setImageBitmap(currentBitmap)
+                binding.ivCheckInPhoto.visibility = View.VISIBLE
+
+                binding.btnCheckInRemision.visibility = View.GONE
+                binding.btnRegistrarDoc.visibility = View.VISIBLE
+                binding.btnRegistrarDoc.isEnabled = true
+            } catch (e: Exception) {
+                Log.e(TAG, "Error leyendo imagen de alta resolución: ${e.message}")
+                Toast.makeText(requireContext(), "Error al procesar foto", Toast.LENGTH_SHORT).show()
+                binding.btnCheckInRemision.isEnabled = true
+            }
+        } else {
+            Log.w(TAG, "⚠️ Captura de foto cancelada por el usuario.")
+            binding.btnCheckInRemision.isEnabled = true
+        }
+    }
+
+    private val requestCameraPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+        if (isGranted) {
+            lanzarCamaraAltaResolucion()
+        } else {
+            Toast.makeText(requireContext(), "Se requiere permiso de cámara para el Check-In", Toast.LENGTH_LONG).show()
+            binding.btnCheckInRemision.isEnabled = true
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -78,17 +126,28 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     }
 
     private fun abrirCamara() {
-        try {
-            val imagenesPrueba = listOf(R.drawable.k1, R.drawable.k2)
-            currentBitmap = BitmapFactory.decodeResource(resources, imagenesPrueba.random())
-            binding.ivCheckInPhoto.setImageBitmap(currentBitmap)
-            binding.ivCheckInPhoto.visibility = View.VISIBLE
+        Log.d(TAG, "📸 Solicitando hardware de cámara...")
+        val permission = Manifest.permission.CAMERA
+        if (ContextCompat.checkSelfPermission(requireContext(), permission) == PackageManager.PERMISSION_GRANTED) {
+            lanzarCamaraAltaResolucion()
+        } else {
+            requestCameraPermissionLauncher.launch(permission)
+        }
+    }
 
-            binding.btnCheckInRemision.visibility = View.GONE
-            binding.btnRegistrarDoc.visibility = View.VISIBLE
-            binding.btnRegistrarDoc.isEnabled = true
+    // 🔥 NUEVO: Función que prepara el archivo y abre la cámara nativa en 4K/12MP
+    private fun lanzarCamaraAltaResolucion() {
+        try {
+            val photoFile = File(requireContext().cacheDir, "checkin_albaran.jpg")
+            photoUri = FileProvider.getUriForFile(
+                requireContext(),
+                "${requireContext().packageName}.fileprovider",
+                photoFile
+            )
+            takePictureLauncher.launch(photoUri)
         } catch (e: Exception) {
-            Toast.makeText(requireContext(), "Falta imagen de prueba", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "Error creando archivo seguro: ${e.message}")
+            Toast.makeText(requireContext(), "No se pudo iniciar la cámara", Toast.LENGTH_SHORT).show()
             binding.btnCheckInRemision.isEnabled = true
         }
     }
@@ -98,9 +157,9 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             if (source.width <= maxLength && source.height <= maxLength) return source
             val aspectRatio = source.width.toDouble() / source.height.toDouble()
             return if (source.height >= source.width) {
-                Bitmap.createScaledBitmap(source, (maxLength * aspectRatio).toInt(), maxLength, false)
+                Bitmap.createScaledBitmap(source, (maxLength * aspectRatio).toInt(), maxLength, true) // Filtrado antialiasing activo
             } else {
-                Bitmap.createScaledBitmap(source, maxLength, (maxLength / aspectRatio).toInt(), false)
+                Bitmap.createScaledBitmap(source, maxLength, (maxLength / aspectRatio).toInt(), true) // Filtrado antialiasing activo
             }
         } catch (e: Exception) {
             return source
@@ -114,9 +173,12 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
             try {
                 val base64Image = withContext(Dispatchers.Default) {
-                    val resizedBmp = resizeBitmap(bitmap, 600)
+                    // 🔥 CAMBIO CRÍTICO PARA OCR:
+                    // Enviamos la imagen a 1600px de resolución (Calidad HD) al 80% de compresión.
+                    // Esto permite al OCR leer letras pequeñas perfectamente, manteniendo el peso del JSON a raya.
+                    val resizedBmp = resizeBitmap(bitmap, 1600)
                     val baos = ByteArrayOutputStream()
-                    resizedBmp.compress(Bitmap.CompressFormat.JPEG, 50, baos)
+                    resizedBmp.compress(Bitmap.CompressFormat.JPEG, 80, baos)
                     Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
                 }
 
@@ -130,8 +192,6 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 val response = withContext(Dispatchers.IO) { RetrofitClient.instance.escribirCheckIn(request) }
 
                 if (response.isSuccessful && response.body()?.error == false) {
-                    // 🔥 EXTRACCIÓN AGRESIVA DEL ID:
-                    // Convierte lo que sea que mande Flask en un Int puro para Kotlin.
                     val rawResult = response.body()?.result
                     currentCheckInId = when (rawResult) {
                         is Number -> rawResult.toInt()
@@ -142,10 +202,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
                     currentAlbaranName = response.body()?.albaran
 
-                    Log.i(TAG, "✅ Documento registrado. ID Parseado: $currentCheckInId | Raw: $rawResult")
-
                     if (currentCheckInId == null) {
-                        Log.e(TAG, "❌ FATAL: El servidor retornó éxito pero no pudimos extraer el ID ($rawResult).")
                         Toast.makeText(requireContext(), "Error de sistema: ID perdido", Toast.LENGTH_LONG).show()
                         resetUIState()
                         return@launch
@@ -168,12 +225,10 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                             msjError = "Error de servidor: HTTP ${response.code()}"
                         }
                     }
-                    Log.w(TAG, "⚠️ Documento rechazado por OCR/Servidor: $msjError")
                     Toast.makeText(requireContext(), "Rechazado: ${msjError ?: "Fallo de validación"}", Toast.LENGTH_LONG).show()
                     resetUIState()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Excepción de red detectada: ${e.message}")
                 Toast.makeText(requireContext(), "Fallo de red al registrar.", Toast.LENGTH_SHORT).show()
                 resetUIState()
             } finally {
@@ -197,9 +252,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         val operacion = if (isConfirmed) "U" else "D"
         val confirmFlag = if (isConfirmed) 1 else null
 
-        // 🔥 BARRERA DE SEGURIDAD ABSOLUTA
         if (currentCheckInId == null) {
-            Log.e(TAG, "❌ Intento de confirmar/eliminar bloqueado. currentCheckInId es NULL.")
             Toast.makeText(requireContext(), "Error crítico: No hay ID seleccionado.", Toast.LENGTH_SHORT).show()
             binding.btnValidarCheckIn.isEnabled = true
             return
@@ -212,8 +265,6 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             var operacionExitosa = false
 
             try {
-                Log.d(TAG, "🚀 Petición de validación lista. Enviando -> ID: $currentCheckInId | operacion: $operacion | confirm: $confirmFlag")
-
                 val request = CheckInRequest(
                     id = currentCheckInId,
                     user = sessionManager.getUsername() ?: "",
@@ -229,12 +280,10 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                     operacionExitosa = true
                     delay(800)
                 } else {
-                    Log.e(TAG, "❌ Fallo HTTP en validación. Code: ${response.code()}")
                     Toast.makeText(requireContext(), "Error al contactar base de datos", Toast.LENGTH_SHORT).show()
                     binding.btnValidarCheckIn.isEnabled = true
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Error de red durante la confirmación: ${e.message}")
                 Toast.makeText(requireContext(), "Fallo de conexión", Toast.LENGTH_SHORT).show()
                 binding.btnValidarCheckIn.isEnabled = true
             } finally {
@@ -253,6 +302,9 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     }
 
     private fun resetUIState() {
+        binding.ivCheckInPhoto.setImageBitmap(null)
+        currentBitmap?.recycle()
+
         binding.ivCheckInPhoto.visibility = View.GONE
         binding.btnRegistrarDoc.visibility = View.GONE
         binding.btnValidarCheckIn.visibility = View.GONE
@@ -261,6 +313,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         currentBitmap = null
         currentCheckInId = null
         currentAlbaranName = null
+        photoUri = null
     }
 
     private fun iniciarFlujoDeCarga() {

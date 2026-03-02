@@ -1,21 +1,62 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# =====================================================
+# 1. PROTECCIÓN ABSOLUTA DE TU CÓDIGO FUENTE
+# Impide que R8 borre ViewModels, Repositorios o Resultados
+# =====================================================
+-keep class com.example.myapplication.** { *; }
+-keep interface com.example.myapplication.** { *; }
+-keep enum com.example.myapplication.** { *; }
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# =====================================================
+# 2. BARRERA PARA ODOO (APACHE XML-RPC)
+# XML-RPC usa fábricas dinámicas. R8 no debe tocar NADA aquí.
+# Esto soluciona el cierre automático al presionar LOGIN.
+# =====================================================
+-keep class org.apache.xmlrpc.** { *; }
+-keep class org.apache.ws.** { *; }
+-keep class org.apache.commons.** { *; }
+-keepclassmembers class org.apache.xmlrpc.** { *; }
+-dontwarn org.apache.xmlrpc.**
+-dontwarn org.apache.ws.**
+-dontwarn org.apache.commons.**
+-dontwarn javax.xml.**
+-dontwarn org.w3c.dom.**
+-dontwarn org.xml.sax.**
+-dontwarn java.awt.**
+-dontwarn java.beans.**
+-dontwarn javax.naming.**
+-dontwarn javax.management.**
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# =====================================================
+# 3. BARRERA PARA SEGURIDAD (ENCRYPTED SHARED PREFERENCES)
+# Tink crashea instantáneamente si se ofusca.
+# =====================================================
+-keep class androidx.security.** { *; }
+-keep class com.google.crypto.tink.** { *; }
+-dontwarn androidx.security.**
+-dontwarn com.google.crypto.tink.**
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# =====================================================
+# 4. BARRERA PARA RED (RETROFIT, OKHTTP, GSON)
+# =====================================================
+-keep class retrofit2.** { *; }
+-keep class okhttp3.** { *; }
+-keep class okio.** { *; }
+-keep class com.google.gson.** { *; }
+-dontwarn retrofit2.**
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn com.google.gson.**
+-dontwarn sun.misc.Unsafe
+
+# =====================================================
+# 5. BARRERA PARA CORRUTINAS Y LIFECYCLE
+# =====================================================
+-keep class kotlinx.coroutines.** { *; }
+-keep class androidx.lifecycle.** { *; }
+-dontwarn kotlinx.coroutines.**
+-dontwarn androidx.lifecycle.**
+
+# =====================================================
+# REGLAS GENERALES DE ATRIBUTOS
+# =====================================================
+-keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod, Exceptions

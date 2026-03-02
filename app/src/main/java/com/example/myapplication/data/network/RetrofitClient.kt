@@ -2,6 +2,7 @@ package com.example.myapplication.data.network
 
 import android.content.Context
 import android.util.Log
+import com.google.gson.GsonBuilder
 import okhttp3.ConnectionPool
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -18,8 +19,6 @@ object RetrofitClient {
     private val retryInterceptor = Interceptor { chain ->
         val request = chain.request()
 
-        // Como desactivamos la caché de red, las peticiones POST ahora son 100% estables.
-        // Mantenemos 1 intento para escritura (Write) y 3 para lectura (Source).
         val isWriteOperation = request.url.encodedPath.contains("/write")
         val maxRetries = if (isWriteOperation) 1 else 3
 
@@ -34,7 +33,7 @@ object RetrofitClient {
                 response = chain.proceed(request)
 
                 if (response.isSuccessful) {
-                    response.peekBody(Long.MAX_VALUE) // Forzar lectura total para validar túnel
+                    response.peekBody(Long.MAX_VALUE)
                     Log.i(TAG, "✅ Respuesta exitosa: ${response.code} | Intento: $tryCount")
                     return@Interceptor response
                 } else {
@@ -57,16 +56,20 @@ object RetrofitClient {
 
     fun init(context: Context) {
         if (retrofit == null) {
-            Log.d(TAG, "⚙️ Inicializando Motor Retrofit/OkHttp (Strict Mode)...")
+            Log.d(TAG, "⚙️ Inicializando Motor Retrofit/OkHttp (PROD SSL Mode + Nulls)...")
+
+            // 🔥 CAMBIO CRÍTICO DE ARQUITECTURA:
+            // Forzamos a Gson a serializar e incluir los valores "null".
+            // Esto evita que Python asigne "Ellipsis" cuando Android omite un campo vacío.
+            val gson = GsonBuilder()
+                .serializeNulls()
+                .create()
+
             val client = OkHttpClient.Builder()
                 .connectTimeout(60, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
                 .writeTimeout(60, TimeUnit.SECONDS)
-                // 🔥 CAMBIO ARQUITECTÓNICO CRÍTICO:
-                // ConnectionPool(0, 1, MILLISECONDS) significa que el Pool retiene 0 conexiones.
-                // Obliga a Android a crear un Socket TCP fresco en cada click.
-                // Esto ERRADICA el error "unexpected end of stream" con servidores Flask.
-                .connectionPool(ConnectionPool(0, 1, TimeUnit.MILLISECONDS))
+                .connectionPool(ConnectionPool(15, 5, TimeUnit.MINUTES))
                 .retryOnConnectionFailure(true)
                 .addInterceptor(retryInterceptor)
                 .addInterceptor(AuthInterceptor(context))
@@ -75,9 +78,11 @@ object RetrofitClient {
             retrofit = Retrofit.Builder()
                 .baseUrl(NetworkConfig.BASE_URL)
                 .client(client)
-                .addConverterFactory(GsonConverterFactory.create())
+                // 🔥 Inyectamos el Gson configurado a Retrofit
+                .addConverterFactory(GsonConverterFactory.create(gson))
                 .build()
-            Log.i(TAG, "🟢 Motor de Red Operativo y blindado.")
+
+            Log.i(TAG, "🟢 Motor de Red HTTPS Operativo y blindado contra Ellipsis.")
         }
     }
 

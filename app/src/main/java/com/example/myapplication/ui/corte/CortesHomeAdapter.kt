@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.example.myapplication.data.network.CorteData
 import com.example.myapplication.databinding.ItemCorteHomeBinding
+import androidx.recyclerview.widget.DiffUtil
 
 class CortesHomeAdapter(
     private val onItemSelected: (CorteData) -> Unit,
@@ -55,8 +56,19 @@ class CortesHomeAdapter(
     override fun getItemCount() = list.size
 
     fun updateData(newList: List<CorteData>) {
+        val diffCallback = object : DiffUtil.Callback() {
+            override fun getOldListSize() = list.size
+            override fun getNewListSize() = newList.size
+            override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                return list[oldItemPosition].id == newList[newItemPosition].id
+            }
+            override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                return list[oldItemPosition] == newList[newItemPosition]
+            }
+        }
+        val diffResult = DiffUtil.calculateDiff(diffCallback)
         this.list = newList
         selectedPosition = -1 // Reseteamos la selección al recargar
-        notifyDataSetChanged()
+        diffResult.dispatchUpdatesTo(this)
     }
 }

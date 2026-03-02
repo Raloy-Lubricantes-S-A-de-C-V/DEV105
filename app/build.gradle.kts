@@ -22,23 +22,20 @@ android {
 
     buildTypes {
         release {
-            // 🔥 CAMBIO CRÍTICO: Activación de R8 para optimización de Bytecode y reducción de Heap
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-        }
-        debug {
+            // 🔥 DESACTIVACIÓN DE R8:
+            // Apagamos el ofuscador y minificador para evitar que mutile las librerías de Odoo.
+            // Esto garantiza que el APK de Release funcione exactamente igual que en modo Debug.
             isMinifyEnabled = false
+            isShrinkResources = false
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
     compileOptions {
-        // 🔥 CAMBIO CRÍTICO: Target Java 17 para optimización de Lambdas e Intrinsics de Kotlin
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
         jvmTarget = "17"
-        // 🔥 Flags de bajo nivel para compilador K2
         freeCompilerArgs = listOf("-Xjvm-default=all", "-Xopt-in=kotlin.RequiresOptIn")
     }
     buildFeatures {
@@ -76,19 +73,31 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    // Lifecycle
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.livedata.ktx)
+
+    // Corrutinas
     implementation(libs.kotlinx.coroutines.android)
+
+    // XML-RPC (Odoo)
     implementation(libs.apache.xmlrpc.client)
     implementation(libs.apache.ws.commons.util)
+
+    // Seguridad sesión
     implementation(libs.androidx.security.crypto)
+
+    // UI & Fragments
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.recyclerview)
+    implementation(libs.google.material)
+    implementation(libs.androidx.swiperefreshlayout)
+
+    // Red (Retrofit + OkHttp + Gson)
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
     implementation(libs.okhttp)
     implementation(libs.gson)
-    implementation(libs.androidx.recyclerview)
-    implementation(libs.google.material)
-    implementation(libs.androidx.swiperefreshlayout)
 }

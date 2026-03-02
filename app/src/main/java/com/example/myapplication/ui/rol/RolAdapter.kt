@@ -7,6 +7,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.myapplication.R
 import com.example.myapplication.data.network.RolData
+import androidx.recyclerview.widget.DiffUtil
 
 class RolAdapter(
     private var list: List<RolData>,
@@ -34,7 +35,19 @@ class RolAdapter(
     override fun getItemCount() = list.size
 
     fun updateData(newList: List<RolData>) {
+        val diffCallback = object : DiffUtil.Callback() {
+            override fun getOldListSize() = list.size
+            override fun getNewListSize() = newList.size
+            // Como el Rol no tiene un "id" numérico, usamos el email de usuario como identificador único
+            override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                return list[oldItemPosition].user == newList[newItemPosition].user
+            }
+            override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                return list[oldItemPosition] == newList[newItemPosition]
+            }
+        }
+        val diffResult = DiffUtil.calculateDiff(diffCallback)
         this.list = newList
-        notifyDataSetChanged()
+        diffResult.dispatchUpdatesTo(this)
     }
 }
