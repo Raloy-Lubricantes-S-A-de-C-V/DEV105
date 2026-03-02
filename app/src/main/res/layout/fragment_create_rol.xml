@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:background="#FFFFFF">
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbarRol"
@@ -11,11 +11,16 @@
         android:layout_height="?attr/actionBarSize"
         android:background="?attr/colorPrimary"
         app:title="Crear Rol"
-        app:titleTextColor="@android:color/white" />
+        app:titleTextColor="@android:color/white"
+        app:navigationIcon="?attr/homeAsUpIndicator"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="0dp"
+        android:fillViewport="true"
+        app:layout_constraintTop_toBottomOf="@id/toolbarRol"
+        app:layout_constraintBottom_toBottomOf="parent">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -23,14 +28,20 @@
             android:orientation="vertical"
             android:padding="24dp">
 
-            <EditText
-                android:id="@+id/etUserEmail"
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="Correo del Usuario"
-                android:inputType="textEmailAddress" />
+                android:hint="Correo del Usuario">
 
-            <CheckBox android:id="@+id/cbSys" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Permiso Sistema (sys)" />
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etUserEmail"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textEmailAddress" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <CheckBox android:id="@+id/cbSys" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Permiso Sistema (sys)" android:layout_marginTop="10dp"/>
             <CheckBox android:id="@+id/cbAdmin" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Permiso Administrador (admin)" />
             <CheckBox android:id="@+id/cbNormal" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Permiso Normal" />
 
@@ -40,6 +51,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:text="CREAR ROL" />
+
             <Button
                 android:id="@+id/btnEliminarRol"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton"
@@ -57,20 +69,64 @@
                 android:layout_marginTop="20dp"
                 android:background="#CCCCCC" />
 
-            <Button
-                android:id="@+id/btnRefreshTable"
-                style="?attr/borderlessButtonStyle"
-                android:layout_width="wrap_content"
+            <RelativeLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="end"
-                android:text="🔄 Actualizar Tabla" />
+                android:layout_marginTop="16dp">
+
+                <TextView
+                    android:id="@+id/btnRefreshTable"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:drawableStart="@android:drawable/ic_popup_sync"
+                    android:drawablePadding="8dp"
+                    android:text="ACTUALIZAR TABLA"
+                    android:textColor="?attr/colorPrimary"
+                    android:textStyle="bold" />
+            </RelativeLayout>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvRoles"
                 android:layout_width="match_parent"
                 android:layout_height="400dp"
-                android:layout_marginTop="8dp" />
+                android:layout_marginTop="16dp" />
 
         </LinearLayout>
     </ScrollView>
-</LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/overlayLoading"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#FFFFFF"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:elevation="10dp"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ProgressBar
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:id="@+id/tvLoadingTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="CARGANDO..."
+            android:textStyle="bold"
+            android:textSize="20sp"
+            android:textColor="?attr/colorPrimary" />
+
+        <TextView
+            android:id="@+id/tvRetryCounter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Iniciando validación..."
+            android:textColor="#757575" />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

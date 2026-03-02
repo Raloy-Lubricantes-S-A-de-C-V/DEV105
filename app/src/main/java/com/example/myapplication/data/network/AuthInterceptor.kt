@@ -14,7 +14,13 @@ class AuthInterceptor(private val context: Context) : Interceptor {
         if (token.isNotEmpty()) {
             requestBuilder.addHeader("Authorization", "Bearer $token")
         }
+
         requestBuilder.addHeader("Content-Type", "application/json")
+
+        // ✅ SOLUCIÓN DEFINITIVA AL "unexpected end of stream"
+        // Obliga a Flask y a Android a cerrar la conexión limpiamente tras leer el JSON
+        requestBuilder.addHeader("Connection", "close")
+
         return chain.proceed(requestBuilder.build())
     }
 
