@@ -26,6 +26,36 @@ data class CorteSourceResponse(val count: Int, val data: List<CorteData>, val er
 
 data class SourceRequest(val data: String = "{}")
 
+// Modelos de CheckIn
+data class CheckInRequest(
+    val id: Int? = null,
+    val user: String,
+    val i: String,
+    val albaran: String? = null,
+    val corte_id: Int? = null,
+    val confirm: Int? = null
+)
+
+data class CheckInData(
+    val id: Int,
+    val user: String?,
+    val albaran: String?,
+    val confirm: Int?,
+    val corte_id: Int?,
+    val signature_date: String?
+)
+
+data class CheckInSourceResponse(val count: Int, val data: List<CheckInData>, val error: Boolean, val msj: String, val status: Int)
+
+// 🔥 CAMBIO CRÍTICO: Ajustado a la nueva respuesta del backend (result = ID, albaran = nombre)
+data class CheckInWriteResponse(
+    val error: Boolean?,
+    val msj: String?,
+    val albaran: String?,
+    val result: Int?,
+    val status: Int?
+)
+
 interface ApiService {
     @POST("autenticate")
     suspend fun autenticateApp(@Body request: AuthAppRequest): Response<AuthResponse>
@@ -36,7 +66,7 @@ interface ApiService {
     @POST("rol/source/is_admin")
     suspend fun checkIsAdmin(@Body request: AccessRequest): Response<AccessResponse>
 
-    @POST("rol/source/is_sys") // ✅ Solución al error de CreateRolFragment
+    @POST("rol/source/is_sys")
     suspend fun checkIsSys(@Body request: AccessRequest): Response<AccessResponse>
 
     @POST("rol/source")
@@ -50,4 +80,10 @@ interface ApiService {
 
     @POST("corte/write")
     suspend fun escribirCorte(@Body request: CorteRequest): Response<Any>
+
+    @POST("checkin/source")
+    suspend fun getCheckInSource(@Body request: SourceRequest): Response<CheckInSourceResponse>
+
+    @POST("checkin/write")
+    suspend fun escribirCheckIn(@Body request: CheckInRequest): Response<CheckInWriteResponse>
 }

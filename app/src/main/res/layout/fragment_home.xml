@@ -43,8 +43,7 @@
                 android:background="@android:color/white"
                 android:elevation="3dp"
                 android:orientation="vertical"
-                android:padding="12dp"
-                android:visibility="gone">
+                android:padding="12dp">
 
                 <RelativeLayout
                     android:layout_width="match_parent"
@@ -72,7 +71,102 @@
                     android:id="@+id/rvCortesAbiertos"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:minHeight="150dp" />
+                    android:minHeight="100dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/sectionCheckIn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@android:color/white"
+                android:elevation="3dp"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="MÓDULO CHECK-IN"
+                        android:textStyle="bold"
+                        android:textColor="?attr/colorPrimary"
+                        android:layout_alignParentStart="true"/>
+                    <TextView
+                        android:id="@+id/tvCorteSeleccionado"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Selecciona un corte ↑"
+                        android:textSize="12sp"
+                        android:textStyle="italic"
+                        android:textColor="#E91E63"
+                        android:layout_alignParentEnd="true"/>
+                </RelativeLayout>
+
+                <Button
+                    android:id="@+id/btnCheckInRemision"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="CHECK-IN REMISIÓN"
+                    android:enabled="false" />
+
+                <ImageView
+                    android:id="@+id/ivCheckInPhoto"
+                    android:layout_width="match_parent"
+                    android:layout_height="250dp"
+                    android:layout_marginTop="8dp"
+                    android:scaleType="centerCrop"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/btnRegistrarDoc"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="REGISTRAR DOCUMENTO"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/btnValidarCheckIn"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:backgroundTint="#4CAF50"
+                    android:text="VALIDAR CHECK IN"
+                    android:visibility="gone" />
+
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Registros de Check-In del Corte:"
+                        android:textStyle="bold"
+                        android:layout_centerVertical="true"/>
+
+                    <ImageButton
+                        android:id="@+id/btnRefreshCheckInTable"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:layout_alignParentEnd="true"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:src="@android:drawable/ic_popup_sync"
+                        app:tint="?attr/colorPrimary" />
+                </RelativeLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvCheckInTable"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:minHeight="100dp" />
+
             </LinearLayout>
         </LinearLayout>
     </ScrollView>
@@ -86,29 +180,11 @@
         android:gravity="center"
         android:elevation="10dp"
         android:clickable="true"
-        android:focusable="true">
-
-        <ProgressBar
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp" />
-
-        <TextView
-            android:id="@+id/tvLoadingTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="CARGANDO..."
-            android:textStyle="bold"
-            android:textSize="20sp"
-            android:textColor="?attr/colorPrimary" />
-
-        <TextView
-            android:id="@+id/tvRetryCounter"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Iniciando validación..."
-            android:textColor="#757575" />
+        android:focusable="true"
+        android:visibility="gone">
+        <ProgressBar android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="16dp" />
+        <TextView android:id="@+id/tvLoadingTitle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="CARGANDO..." android:textStyle="bold" android:textSize="20sp" android:textColor="?attr/colorPrimary" />
+        <TextView android:id="@+id/tvRetryCounter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Procesando..." android:textColor="#757575" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

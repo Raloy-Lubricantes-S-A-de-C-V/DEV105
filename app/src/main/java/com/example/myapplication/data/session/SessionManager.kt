@@ -2,6 +2,7 @@ package com.example.myapplication.data.session
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
@@ -22,24 +23,30 @@ class SessionManager(context: Context) {
     companion object {
         private const val KEY_UID = "uid"
         private const val KEY_USERNAME = "username"
-        private const val KEY_TOKEN = "access_token" // ✅ NUEVO: Para el JWT real
+        private const val KEY_TOKEN = "access_token"
+        private const val TAG = "DEV105_SESSION" // 🔥 Etiqueta centralizada para Logcat
     }
 
-    // Guardar solo el token (para el inicio de la app)
     fun saveToken(token: String) {
-        sharedPreferences.edit().putString(KEY_TOKEN, token).commit()
+        // 🔥 CAMBIO CRÍTICO: apply() evita el I/O Block en el Main Thread
+        sharedPreferences.edit().putString(KEY_TOKEN, token).apply()
+        Log.d(TAG, "🔑 Token JWT guardado en memoria segura.")
     }
 
-    // Guardar sesión completa (al hacer login de usuario)
     fun saveSession(uid: Int, username: String) {
         sharedPreferences.edit().apply {
             putInt(KEY_UID, uid)
             putString(KEY_USERNAME, username)
-            commit()
+            apply() // 🔥 CAMBIO CRÍTICO: apply()
         }
+        Log.i(TAG, "✅ Sesión persistida asíncronamente para el usuario: $username | UID: $uid")
     }
 
-    fun getToken(): String? = sharedPreferences.getString(KEY_TOKEN, null)
+    fun getToken(): String? {
+        val token = sharedPreferences.getString(KEY_TOKEN, null)
+        if (token == null) Log.w(TAG, "⚠️ Intento de lectura de Token: NULL")
+        return token
+    }
 
     fun getUid(): Int? {
         val uid = sharedPreferences.getInt(KEY_UID, -1)
@@ -50,5 +57,6 @@ class SessionManager(context: Context) {
 
     fun clearSession() {
         sharedPreferences.edit().clear().apply()
+        Log.w(TAG, "🗑️ Sesión destruida completamente del EncryptedStorage.")
     }
 }

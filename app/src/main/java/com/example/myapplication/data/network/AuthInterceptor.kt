@@ -15,8 +15,10 @@ class AuthInterceptor(private val context: Context) : Interceptor {
             requestBuilder.addHeader("Authorization", "Bearer $token")
         }
 
-        // ✅ CONEXIÓN FLUIDA:
-        requestBuilder.addHeader("Connection", "Keep-Alive")
+        // 🔥 CAMBIO CRÍTICO: "close" en lugar de "Keep-Alive".
+        // Esto evita el error "unexpected end of stream" forzando al motor a
+        // no reutilizar sockets viejos que el servidor Flask ya dio por cerrados.
+        requestBuilder.addHeader("Connection", "close")
         requestBuilder.addHeader("Accept-Encoding", "identity")
 
         return chain.proceed(requestBuilder.build())
