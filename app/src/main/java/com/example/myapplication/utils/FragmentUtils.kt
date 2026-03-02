@@ -26,6 +26,7 @@ fun Fragment.ejecutarFlujoSeguro(
     viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
         var sesionValida = false
 
+        // 1. FASE DE SESIÓN (Los 3 Intentos)
         for (intento in 1..3) {
             Log.w(logTag, "Verificando sesión. Intento $intento/3")
             tvCounter?.text = "Validando red... (Intento $intento/3)"
@@ -43,22 +44,30 @@ fun Fragment.ejecutarFlujoSeguro(
             if (intento < 3) delay(1500)
         }
 
+        // 2. FASE DE DESCARGA DE DATOS/TABLAS
         if (sesionValida) {
             tvCounter?.text = "Descargando datos y tablas..."
-
-            // ✅ CLAVE 4: Micro-pausa.
-            // Deja que Flask cierre el socket de "verificarSesion" antes de pedirle las tablas.
-            delay(400)
+            delay(400) // Micro-pausa para desatascar el servidor
 
             try {
                 coroutineScope { accionCarga() }
             } catch (e: Exception) {
                 Log.e(logTag, "❌ Error fatal al descargar datos: ${e.message}")
-                Toast.makeText(requireContext(), "Error al sincronizar", Toast.LENGTH_SHORT).show()
+
+                // ✅ AQUÍ ESTÁ EL REQUERIMIENTO SOLICITADO
+                // Este mensaje SOLO sale si la sesión pasó, pero los datos de la tabla fallaron
+                Toast.makeText(
+                    requireContext(),
+                    "Recarga la tabla, probablemente no se cargaron los datos",
+                    Toast.LENGTH_LONG
+                ).show()
+
             } finally {
+                // Siempre quitamos el candado visual para que el usuario pueda interactuar/recargar
                 overlay?.visibility = View.GONE
             }
         } else {
+            // Fase de Sesión fallida
             overlay?.visibility = View.GONE
             Toast.makeText(requireContext(), "Sesión caducada o sin red", Toast.LENGTH_LONG).show()
             onFalloSesion()
