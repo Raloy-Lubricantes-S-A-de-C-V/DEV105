@@ -19,9 +19,6 @@ class AuthInterceptor(private val context: Context) : Interceptor {
     }
 
     companion object {
-        // ✅ SOLUCIÓN: Método para resetear el estado del token si es necesario
-        fun resetToken() {
-            // Lógica opcional para limpiar caché de tokens
-        }
+        fun resetToken() { /* Reset de cache si fuera necesario */ }
     }
 }

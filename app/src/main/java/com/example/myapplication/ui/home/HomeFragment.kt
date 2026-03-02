@@ -11,6 +11,7 @@ import com.example.myapplication.data.network.*
 import com.example.myapplication.data.session.SessionManager
 import com.example.myapplication.databinding.FragmentHomeBinding
 import com.example.myapplication.ui.login.LoginFragment
+import com.example.myapplication.ui.rol.CreateRolFragment
 import kotlinx.coroutines.*
 
 class HomeFragment : Fragment(R.layout.fragment_home) {
@@ -26,8 +27,31 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         _binding = FragmentHomeBinding.bind(view)
         sessionManager = SessionManager(requireContext())
 
+        setupToolbar() // ✅ Configuración del menú
         setupRecyclerView()
         iniciarCicloValidacion()
+    }
+
+    private fun setupToolbar() {
+        // ✅ Carga el archivo home_menu.xml en el Toolbar
+        binding.toolbar.inflateMenu(R.menu.home_menu)
+
+        binding.toolbar.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.action_logout -> {
+                    doLogout("Sesión cerrada")
+                    true
+                }
+                R.id.create_rol -> {
+                    parentFragmentManager.beginTransaction()
+                        .replace(R.id.main_container, CreateRolFragment())
+                        .addToBackStack(null)
+                        .commit()
+                    true
+                }
+                else -> false
+            }
+        }
     }
 
     private fun iniciarCicloValidacion() {
@@ -55,17 +79,30 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
             if (exitoso) {
                 binding.loader.visibility = View.GONE
-                binding.welcomeText.text = "Bienvenido: ${sessionManager.getUsername()}"
+                binding.welcomeText.text = "Usuario: ${sessionManager.getUsername()}"
+                validarPermisosAdmin()
             } else {
-                doLogout("Error de validación tras 3 intentos.")
+                doLogout("Error de verificación de API tras $MAX_INTENTOS intentos.")
             }
+        }
+    }
+
+    private fun validarPermisosAdmin() {
+        val email = sessionManager.getUsername() ?: ""
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val res = withContext(Dispatchers.IO) { RetrofitClient.instance.checkIsAdmin(AccessRequest(email)) }
+                if (res.isSuccessful && res.body()?.access == true) {
+                    binding.sectionCortesAbiertos.visibility = View.VISIBLE
+                }
+            } catch (e: Exception) { }
         }
     }
 
     private fun setupRecyclerView() {
         val adapter = CortesHomeAdapter(
-            onItemSelected = { corte: CorteData -> },
-            onActionClick = { corte: CorteData, accion: Int -> }
+            onItemSelected = { _: CorteData -> },
+            onActionClick = { _: CorteData, _: Int -> }
         )
         binding.rvCortesAbiertos.layoutManager = LinearLayoutManager(requireContext())
         binding.rvCortesAbiertos.adapter = adapter
