@@ -13,7 +13,7 @@ import com.example.myapplication.ui.login.LoginFragment
 import com.example.myapplication.ui.rol.CreateRolFragment
 import com.example.myapplication.utils.ejecutarFlujoSeguro
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
+import kotlinx.coroutines.withContext
 
 class HomeFragment : Fragment(R.layout.fragment_home) {
     private var _binding: FragmentHomeBinding? = null
@@ -42,12 +42,9 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 val user = sessionManager.getUsername() ?: ""
                 binding.welcomeText.text = "Bienvenido: $user"
 
-                // Descarga concurrente
-                val adminResDeferred = async(Dispatchers.IO) { RetrofitClient.instance.checkIsAdmin(AccessRequest(user)) }
-                val cortesResDeferred = async(Dispatchers.IO) { RetrofitClient.instance.getCortesSource(SourceRequest("{}")) }
-
-                val adminRes = adminResDeferred.await()
-                val cortesRes = cortesResDeferred.await()
+                // SECUENCIAL: Evita el colapso del socket
+                val adminRes = withContext(Dispatchers.IO) { RetrofitClient.instance.checkIsAdmin(AccessRequest(user)) }
+                val cortesRes = withContext(Dispatchers.IO) { RetrofitClient.instance.getCortesSource(SourceRequest("{}")) }
 
                 if (adminRes.isSuccessful && adminRes.body()?.access == true) {
                     binding.sectionCortesAbiertos.visibility = View.VISIBLE

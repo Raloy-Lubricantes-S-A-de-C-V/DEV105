@@ -14,7 +14,6 @@ import com.example.myapplication.databinding.FragmentCreateRolBinding
 import com.example.myapplication.ui.login.LoginFragment
 import com.example.myapplication.utils.ejecutarFlujoSeguro
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -48,13 +47,12 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
             accionCarga = {
                 val userEmail = sessionManager.getUsername() ?: ""
 
-                val sysResDeferred = async(Dispatchers.IO) { RetrofitClient.instance.checkIsSys(AccessRequest(userEmail)) }
-                val rolesResDeferred = async(Dispatchers.IO) { RetrofitClient.instance.getRolesSource(SourceRequest("{}")) }
-
-                val sysRes = sysResDeferred.await()
-                val rolesRes = rolesResDeferred.await()
+                // SECUENCIAL para estabilidad absoluta
+                val sysRes = withContext(Dispatchers.IO) { RetrofitClient.instance.checkIsSys(AccessRequest(userEmail)) }
+                val rolesRes = withContext(Dispatchers.IO) { RetrofitClient.instance.getRolesSource(SourceRequest("{}")) }
 
                 if (sysRes.isSuccessful) isSysUser = sysRes.body()?.access ?: false
+
                 if (rolesRes.isSuccessful && rolesRes.body() != null) {
                     rolAdapter.updateData(rolesRes.body()!!.data)
                 }
@@ -85,8 +83,9 @@ class CreateRolFragment : Fragment(R.layout.fragment_create_rol) {
             try {
                 val response = withContext(Dispatchers.IO) { RetrofitClient.instance.escribirRol(request) }
                 if (response.isSuccessful) {
+                    Toast.makeText(requireContext(), "Operación exitosa", Toast.LENGTH_SHORT).show()
                     limpiarInterfaz()
-                    iniciarFlujoDeCarga() // Re-ejecuta validación y descarga completa
+                    iniciarFlujoDeCarga()
                 }
             } catch (e: Exception) {
                 Log.e("ROL_FLOW", "❌ Fallo escritura: ${e.message}")

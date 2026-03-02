@@ -10,7 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:background="?attr/colorPrimary"
-        app:title="Crear Corte"
+        app:title="Gestión de Cortes"
         app:titleTextColor="@android:color/white"
         app:navigationIcon="?attr/homeAsUpIndicator"
         app:layout_constraintTop_toTopOf="parent" />
@@ -35,20 +35,39 @@
                 android:layout_height="wrap_content" />
         </com.google.android.material.textfield.TextInputLayout>
 
+        <CheckBox
+            android:id="@+id/cbEstadoCorte"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Estado: Cerrado"
+            android:visibility="gone" />
+
         <Button
             android:id="@+id/btnGuardarCorte"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
+            android:layout_marginTop="16dp"
             android:text="CREAR CORTE"
             app:backgroundTint="?attr/colorPrimary" />
+
+        <Button
+            android:id="@+id/btnEliminarCorte"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="ELIMINAR CORTE"
+            android:textColor="#FF0000"
+            app:strokeColor="#FF0000"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/tvActualizarLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="end"
-            android:layout_marginTop="20dp"
+            android:layout_marginTop="16dp"
             android:drawableStart="@android:drawable/ic_popup_sync"
             android:drawablePadding="8dp"
             android:text="ACTUALIZAR TABLA"
@@ -96,4 +115,5 @@
             android:text="Iniciando validación..."
             android:textColor="#757575" />
     </LinearLayout>
+
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -15,16 +15,16 @@ class AuthInterceptor(private val context: Context) : Interceptor {
             requestBuilder.addHeader("Authorization", "Bearer $token")
         }
 
-        requestBuilder.addHeader("Content-Type", "application/json")
-
-        // ✅ SOLUCIÓN DEFINITIVA AL "unexpected end of stream"
-        // Obliga a Flask y a Android a cerrar la conexión limpiamente tras leer el JSON
+        // ✅ REGLA DE ORO CONTRA LA INACTIVIDAD:
+        // Le dice a Flask y a Android que corten la llamada al terminar.
+        // Así no quedan conexiones fantasmas tras 4 minutos.
         requestBuilder.addHeader("Connection", "close")
+        requestBuilder.addHeader("Accept-Encoding", "identity")
 
         return chain.proceed(requestBuilder.build())
     }
 
     companion object {
-        fun resetToken() { /* Reset de cache si fuera necesario */ }
+        fun resetToken() {}
     }
 }
