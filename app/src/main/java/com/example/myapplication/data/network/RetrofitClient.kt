@@ -14,47 +14,46 @@ import java.util.concurrent.TimeUnit
 object RetrofitClient {
     private var retrofit: Retrofit? = null
 
+    // ✅ ESCUDO BLINDADO CON BUCLE FOR
     private val retryInterceptor = Interceptor { chain ->
         val request = chain.request()
         var response: Response? = null
         var exception: Exception? = null
-        var tryCount = 0
 
-        while (tryCount < 3) {
+        for (tryCount in 1..3) {
             try {
-                response?.close() // Cierra cualquier intento previo
+                response?.close()
                 response = chain.proceed(request)
 
-                // 🔥 LA MAGIA CONTRA EL FANTASMA DE LOS 4 MINUTOS:
-                // Obliga a Android a descargar todo el body AQUÍ ADENTRO.
-                // Si el socket estaba muerto por inactividad, explotará en esta exacta línea,
-                // el catch lo atrapará de inmediato y reintentará con un socket fresco.
                 if (response.isSuccessful) {
-                    response.body?.source()?.request(Long.MAX_VALUE)
+                    // Forzamos descarga para asegurar el socket
+                    response.peekBody(Long.MAX_VALUE)
+                    return@Interceptor response
+                } else {
+                    // ✅ CORRECCIÓN MAESTRA: Si es un error 500 o 400, NO reintenta.
+                    // Lo devuelve de inmediato para que la UI lo maneje y no se cicle.
+                    return@Interceptor response
                 }
-
-                return@Interceptor response
             } catch (e: Exception) {
                 exception = e
-                tryCount++
-                Log.w("NETWORK_RETRY", "⚠️ Socket inactivo detectado. Reintentando $tryCount/3... (${e.message})")
-                Thread.sleep(500) // Medio segundo para limpiar la basura de la red
+                Log.w("NETWORK_RETRY", "⚠️ Socket inactivo. Intento $tryCount/3... (${e.message})")
+                if (tryCount == 3) throw e // Lanza error al último intento
+                Thread.sleep(800) // Respiro de red
             }
         }
-        throw exception ?: IOException("Fallo de red persistente")
+        return@Interceptor response ?: throw exception ?: IOException("Fallo de red persistente")
     }
 
     fun init(context: Context) {
         if (retrofit == null) {
             val client = OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
-                // 🔥 Asesina la memoria caché de sockets. Garantiza que toda petición nueva nazca limpia.
-                .connectionPool(ConnectionPool(0, 1, TimeUnit.NANOSECONDS))
+                .connectTimeout(45, TimeUnit.SECONDS)
+                .readTimeout(45, TimeUnit.SECONDS)
+                .writeTimeout(45, TimeUnit.SECONDS)
+                .connectionPool(ConnectionPool(5, 2, TimeUnit.MINUTES))
                 .retryOnConnectionFailure(true)
-                .addInterceptor(retryInterceptor) // 1ro: El escudo de reintentos
-                .addInterceptor(AuthInterceptor(context)) // 2do: Las cabeceras
+                .addInterceptor(retryInterceptor)
+                .addInterceptor(AuthInterceptor(context))
                 .build()
 
             retrofit = Retrofit.Builder()

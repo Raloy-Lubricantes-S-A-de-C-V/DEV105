@@ -26,7 +26,9 @@ fun Fragment.ejecutarFlujoSeguro(
     viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
         var sesionValida = false
 
-        // 1. FASE DE SESIÓN (Los 3 Intentos)
+        // ==========================================
+        // 1. FASE DE SESIÓN (3 Intentos de conexión)
+        // ==========================================
         for (intento in 1..3) {
             Log.w(logTag, "Verificando sesión. Intento $intento/3")
             tvCounter?.text = "Validando red... (Intento $intento/3)"
@@ -44,28 +46,51 @@ fun Fragment.ejecutarFlujoSeguro(
             if (intento < 3) delay(1500)
         }
 
-        // 2. FASE DE DESCARGA DE DATOS/TABLAS
+        // ==========================================
+        // 2. FASE DE DESCARGA CON AUTO-REFRESH
+        // ==========================================
         if (sesionValida) {
-            tvCounter?.text = "Descargando datos y tablas..."
-            delay(400) // Micro-pausa para desatascar el servidor
+            var datosCargados = false
+            var intentosDatos = 0
+            val maxIntentosDatos = 3
 
-            try {
-                coroutineScope { accionCarga() }
-            } catch (e: Exception) {
-                Log.e(logTag, "❌ Error fatal al descargar datos: ${e.message}")
+            // Bucle que hace el "Refresh de Fragment" automático si hay error fatal
+            while (intentosDatos < maxIntentosDatos && !datosCargados) {
+                intentosDatos++
 
-                // ✅ AQUÍ ESTÁ EL REQUERIMIENTO SOLICITADO
-                // Este mensaje SOLO sale si la sesión pasó, pero los datos de la tabla fallaron
-                Toast.makeText(
-                    requireContext(),
-                    "Recarga la tabla, probablemente no se cargaron los datos",
-                    Toast.LENGTH_LONG
-                ).show()
+                if (intentosDatos == 1) {
+                    tvCounter?.text = "Descargando datos y tablas..."
+                } else {
+                    // Notificamos al usuario que estamos auto-recargando el fragmento
+                    tvCounter?.text = "Recargando fragmento... (Auto-Refresh $intentosDatos/$maxIntentosDatos)"
+                    Log.w(logTag, "🔄 Ejecutando Auto-Refresh del fragmento...")
+                }
 
-            } finally {
-                // Siempre quitamos el candado visual para que el usuario pueda interactuar/recargar
-                overlay?.visibility = View.GONE
+                delay(500) // Respiro para desatascar Flask
+
+                try {
+                    coroutineScope { accionCarga() }
+                    datosCargados = true // Éxito: marcamos bandera para salir del bucle
+                } catch (e: Exception) {
+                    Log.e(logTag, "❌ Error fatal al descargar datos: ${e.message}")
+
+                    if (intentosDatos >= maxIntentosDatos) {
+                        // Si falla los 3 refresh automáticos, avisamos y liberamos la pantalla
+                        Toast.makeText(
+                            requireContext(),
+                            "Servidor saturado. Usa el botón de actualizar tabla.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } else {
+                        // Espera de 1.5s antes del siguiente Auto-Refresh
+                        delay(1500)
+                    }
+                }
             }
+
+            // Siempre quitamos el candado visual al terminar (haya éxito o no)
+            overlay?.visibility = View.GONE
+
         } else {
             // Fase de Sesión fallida
             overlay?.visibility = View.GONE

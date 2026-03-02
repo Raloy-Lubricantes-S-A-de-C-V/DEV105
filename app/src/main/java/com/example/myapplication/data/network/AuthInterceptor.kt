@@ -15,10 +15,8 @@ class AuthInterceptor(private val context: Context) : Interceptor {
             requestBuilder.addHeader("Authorization", "Bearer $token")
         }
 
-        // ✅ REGLA DE ORO CONTRA LA INACTIVIDAD:
-        // Le dice a Flask y a Android que corten la llamada al terminar.
-        // Así no quedan conexiones fantasmas tras 4 minutos.
-        requestBuilder.addHeader("Connection", "close")
+        // ✅ CONEXIÓN FLUIDA:
+        requestBuilder.addHeader("Connection", "Keep-Alive")
         requestBuilder.addHeader("Accept-Encoding", "identity")
 
         return chain.proceed(requestBuilder.build())

@@ -1,8 +1,11 @@
 package com.example.myapplication.ui.home
 
 import android.os.Bundle
+import android.util.Log
 import android.view.View
+import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.myapplication.R
 import com.example.myapplication.data.network.*
@@ -13,6 +16,8 @@ import com.example.myapplication.ui.login.LoginFragment
 import com.example.myapplication.ui.rol.CreateRolFragment
 import com.example.myapplication.utils.ejecutarFlujoSeguro
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class HomeFragment : Fragment(R.layout.fragment_home) {
@@ -42,19 +47,63 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 val user = sessionManager.getUsername() ?: ""
                 binding.welcomeText.text = "Bienvenido: $user"
 
-                // SECUENCIAL: Evita el colapso del socket
                 val adminRes = withContext(Dispatchers.IO) { RetrofitClient.instance.checkIsAdmin(AccessRequest(user)) }
+                delay(200)
                 val cortesRes = withContext(Dispatchers.IO) { RetrofitClient.instance.getCortesSource(SourceRequest("{}")) }
 
                 if (adminRes.isSuccessful && adminRes.body()?.access == true) {
                     binding.sectionCortesAbiertos.visibility = View.VISIBLE
                     if (cortesRes.isSuccessful && cortesRes.body() != null) {
-                        cortesAdapter.updateData(cortesRes.body()!!.data)
+                        val cortesActivos = cortesRes.body()!!.data.filter { it.state == 1 }
+                        cortesAdapter.updateData(cortesActivos)
                     }
                 }
             },
             onFalloSesion = { logout() }
         )
+    }
+
+    private fun ejecutarAccionBoton(corte: CorteData, nuevoEstado: Int) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            binding.overlayLoading.visibility = View.VISIBLE
+            binding.tvLoadingTitle.text = if (nuevoEstado == 0) "CERRANDO CORTE..." else "ACTUALIZANDO..."
+
+            try {
+                val request = CorteRequest(
+                    id = corte.id,
+                    user = sessionManager.getUsername() ?: "",
+                    i = "U",
+                    description = corte.description,
+                    state = nuevoEstado
+                )
+                val res = withContext(Dispatchers.IO) { RetrofitClient.instance.escribirCorte(request) }
+
+                if (res.isSuccessful) {
+                    Toast.makeText(requireContext(), "Corte actualizado exitosamente", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(requireContext(), "Aviso: Corte modificado previamente", Toast.LENGTH_LONG).show()
+                }
+
+                delay(600)
+                iniciarFlujoDeCarga()
+
+            } catch (e: Exception) {
+                Log.e("HOME_FLOW", "Error acción: ${e.message}")
+                Toast.makeText(requireContext(), "Fallo de red", Toast.LENGTH_SHORT).show()
+                binding.overlayLoading.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun setupRecyclerView() {
+        cortesAdapter = CortesHomeAdapter(
+            onItemSelected = {},
+            onActionClick = { corte, accion ->
+                ejecutarAccionBoton(corte, accion)
+            }
+        )
+        binding.rvCortesAbiertos.layoutManager = LinearLayoutManager(requireContext())
+        binding.rvCortesAbiertos.adapter = cortesAdapter
     }
 
     private fun setupMenu() {
@@ -67,12 +116,6 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 else -> false
             }
         }
-    }
-
-    private fun setupRecyclerView() {
-        cortesAdapter = CortesHomeAdapter(onItemSelected = {}, onActionClick = { _, _ -> })
-        binding.rvCortesAbiertos.layoutManager = LinearLayoutManager(requireContext())
-        binding.rvCortesAbiertos.adapter = cortesAdapter
     }
 
     private fun nav(fragment: Fragment) {

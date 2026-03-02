@@ -14,8 +14,12 @@ import com.example.myapplication.databinding.FragmentCreateCorteBinding
 import com.example.myapplication.ui.login.LoginFragment
 import com.example.myapplication.utils.ejecutarFlujoSeguro
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 class CreateCorteFragment : Fragment(R.layout.fragment_create_corte) {
     private var _binding: FragmentCreateCorteBinding? = null
@@ -36,14 +40,14 @@ class CreateCorteFragment : Fragment(R.layout.fragment_create_corte) {
         setupTablaCortes()
 
         binding.cbEstadoCorte.setOnCheckedChangeListener { _, isChecked ->
-            binding.cbEstadoCorte.text = if (isChecked) "Estado: Abierto" else "Estado: Cerrado"
+            binding.cbEstadoCorte.text = if (isChecked) "Estado: Activo" else "Estado: Cerrado"
         }
 
         binding.btnGuardarCorte.setOnClickListener {
             val desc = binding.etDescription.text.toString().trim()
             if (desc.isNotEmpty()) {
                 val op = if (currentCorteId == null) "C" else "U"
-                val state = if (binding.cbEstadoCorte.isChecked) 1 else 0
+                val state = if (currentCorteId == null) 1 else (if (binding.cbEstadoCorte.isChecked) 1 else 0)
                 ejecutarEscritura(CorteRequest(id = currentCorteId, user = session.getUsername() ?: "", i = op, description = desc, state = state))
             } else {
                 Toast.makeText(requireContext(), "Falta descripción", Toast.LENGTH_SHORT).show()
@@ -57,7 +61,6 @@ class CreateCorteFragment : Fragment(R.layout.fragment_create_corte) {
         }
 
         binding.tvActualizarLabel.setOnClickListener {
-            limpiarFormulario()
             iniciarFlujoDeCarga()
         }
 
@@ -71,20 +74,16 @@ class CreateCorteFragment : Fragment(R.layout.fragment_create_corte) {
             accionCarga = {
                 val user = session.getUsername() ?: ""
 
-                // SECUENCIAL para evitar 'unexpected end of stream'
                 val adminRes = withContext(Dispatchers.IO) { RetrofitClient.instance.checkIsAdmin(AccessRequest(user)) }
+                delay(200)
                 val sysRes = withContext(Dispatchers.IO) { RetrofitClient.instance.checkIsSys(AccessRequest(user)) }
+                delay(200)
                 val cortesRes = withContext(Dispatchers.IO) { RetrofitClient.instance.getCortesSource(SourceRequest("{}")) }
 
                 if (adminRes.isSuccessful) isAdminUser = adminRes.body()?.access == true
                 if (sysRes.isSuccessful) isSysUser = sysRes.body()?.access == true
 
-                if (isAdminUser) {
-                    binding.cbEstadoCorte.visibility = View.VISIBLE
-                } else {
-                    binding.btnGuardarCorte.text = "MODO LECTURA"
-                    binding.btnGuardarCorte.isEnabled = false
-                }
+                limpiarFormulario()
 
                 if (cortesRes.isSuccessful && cortesRes.body() != null) {
                     corteAdapter.updateData(cortesRes.body()!!.data)
@@ -104,14 +103,17 @@ class CreateCorteFragment : Fragment(R.layout.fragment_create_corte) {
 
             try {
                 val res = withContext(Dispatchers.IO) { RetrofitClient.instance.escribirCorte(request) }
+
                 if (res.isSuccessful) {
                     Toast.makeText(requireContext(), "Operación exitosa", Toast.LENGTH_SHORT).show()
-                    limpiarFormulario()
-                    iniciarFlujoDeCarga()
                 } else {
-                    Toast.makeText(requireContext(), "Error en el servidor", Toast.LENGTH_SHORT).show()
-                    binding.overlayLoading.visibility = View.GONE
+                    Toast.makeText(requireContext(), "Aviso: Acción pre-procesada o error de servidor", Toast.LENGTH_LONG).show()
                 }
+
+                limpiarFormulario()
+                delay(600) // Pausa para permitir que la BD termine su proceso
+                iniciarFlujoDeCarga()
+
             } catch (e: Exception) {
                 Log.e("CORTE_FLOW", "❌ Fallo escritura: ${e.message}")
                 Toast.makeText(requireContext(), "Fallo de conexión", Toast.LENGTH_SHORT).show()
@@ -124,10 +126,11 @@ class CreateCorteFragment : Fragment(R.layout.fragment_create_corte) {
         corteAdapter = CorteAdapter(emptyList()) { item ->
             currentCorteId = item.id
             binding.etDescription.setText(item.description)
-            binding.cbEstadoCorte.isChecked = item.state == 1
 
             if (isAdminUser) {
                 binding.btnGuardarCorte.text = "ACTUALIZAR CORTE"
+                binding.cbEstadoCorte.visibility = View.VISIBLE
+                binding.cbEstadoCorte.isChecked = item.state == 1
             }
             if (isSysUser) {
                 binding.btnEliminarCorte.visibility = View.VISIBLE
@@ -141,10 +144,25 @@ class CreateCorteFragment : Fragment(R.layout.fragment_create_corte) {
 
     private fun limpiarFormulario() {
         currentCorteId = null
-        binding.etDescription.text?.clear()
-        binding.cbEstadoCorte.isChecked = false
-        binding.btnGuardarCorte.text = if (isAdminUser) "CREAR CORTE" else "MODO LECTURA"
+
+        val calendar = Calendar.getInstance()
+        val formatoFecha = SimpleDateFormat("dd/MM/yy", Locale.getDefault())
+        val hora = calendar.get(Calendar.HOUR_OF_DAY)
+        val sufijoTurno = if (hora < 13) "1/2" else "2/2"
+        binding.etDescription.setText("Corte ${formatoFecha.format(calendar.time)} $sufijoTurno")
+
+        binding.cbEstadoCorte.visibility = View.GONE
         binding.btnEliminarCorte.visibility = View.GONE
+
+        if (isAdminUser) {
+            binding.btnGuardarCorte.text = "CREAR CORTE"
+            binding.btnGuardarCorte.isEnabled = true
+            binding.etDescription.isEnabled = true
+        } else {
+            binding.btnGuardarCorte.text = "MODO LECTURA"
+            binding.btnGuardarCorte.isEnabled = false
+            binding.etDescription.isEnabled = false
+        }
     }
 
     override fun onDestroyView() { super.onDestroyView(); _binding = null }
