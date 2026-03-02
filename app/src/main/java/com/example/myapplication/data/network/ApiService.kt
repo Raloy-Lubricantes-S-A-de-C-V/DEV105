@@ -5,19 +5,20 @@ import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.GET
 
+// --- MODELOS DE DATOS ---
 data class AuthAppRequest(
-    val username: String, // "username" según tu CURL
+    val username: String, // ✅ Sincronizado con CURL de producción
     val password: String
 )
 
 data class AuthResponse(
-    val data: AuthData?,  // Mapeo de { "data": { "key": "..." } }
+    val data: AuthData?,  // ✅ Mapeo de { "data": { "key": "..." } }
     val status: Int
 )
 
 data class AuthData(
     val error: Boolean,
-    val key: String,      // El token es el campo 'key'
+    val key: String,      // ✅ Token real
     val msj: String
 )
 
@@ -38,7 +39,7 @@ interface ApiService {
     @POST("autenticate")
     suspend fun autenticateApp(@Body request: AuthAppRequest): Response<AuthResponse>
 
-    @GET("verificar-sesion")
+    @GET("verificar-sesion") // ✅ GET sin Body para evitar error en Flask
     suspend fun verificarSesion(): Response<AccessResponse>
 
     @POST("rol/source/is_admin")

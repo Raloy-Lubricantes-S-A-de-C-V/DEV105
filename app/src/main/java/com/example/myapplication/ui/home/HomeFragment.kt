@@ -18,8 +18,6 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
 
-    private val MAX_INTENTOS = 3
-    private val DELAY_REINTENTO = 5000L
     private lateinit var sessionManager: SessionManager
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -27,26 +25,21 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         _binding = FragmentHomeBinding.bind(view)
         sessionManager = SessionManager(requireContext())
 
-        setupToolbar() // ✅ Configuración del menú
+        setupToolbar()
         setupRecyclerView()
-        iniciarCicloValidacion()
+        iniciarValidacionSesion()
     }
 
     private fun setupToolbar() {
-        // ✅ Carga el archivo home_menu.xml en el Toolbar
+        // ✅ SOLUCIÓN AL MENÚ: Inflamos el menú manualmente en el toolbar del Fragment
         binding.toolbar.inflateMenu(R.menu.home_menu)
-
         binding.toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                R.id.action_logout -> {
-                    doLogout("Sesión cerrada")
-                    true
-                }
+                R.id.action_logout -> { doLogout("Sesión finalizada"); true }
                 R.id.create_rol -> {
                     parentFragmentManager.beginTransaction()
                         .replace(R.id.main_container, CreateRolFragment())
-                        .addToBackStack(null)
-                        .commit()
+                        .addToBackStack(null).commit()
                     true
                 }
                 else -> false
@@ -54,41 +47,33 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         }
     }
 
-    private fun iniciarCicloValidacion() {
+    private fun iniciarValidacionSesion() {
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
-            var exitoso = false
-            for (intento in 1..MAX_INTENTOS) {
-                if (_binding == null) break
-                binding.loader.visibility = View.VISIBLE
+            binding.loader.visibility = View.VISIBLE
+            try {
+                val response = withContext(Dispatchers.IO) { RetrofitClient.instance.verificarSesion() }
 
-                try {
-                    val response = withContext(Dispatchers.IO) {
-                        RetrofitClient.instance.verificarSesion()
-                    }
-                    if (response.isSuccessful) {
-                        exitoso = true
-                        break
-                    }
-                } catch (e: Exception) { }
-
-                if (intento < MAX_INTENTOS) {
+                if (response.isSuccessful) {
                     binding.loader.visibility = View.GONE
-                    delay(DELAY_REINTENTO)
+                    binding.welcomeText.text = "Bienvenido, ${sessionManager.getUsername()}"
+                    // ✅ ACTIVAR DISEÑO: Mostramos las secciones ocultas
+                    binding.sectionCheckIn.visibility = View.VISIBLE
+                    validarAdmin(sessionManager.getUsername() ?: "")
+                } else {
+                    // ✅ TOKEN VENCIDO: Cierre automático
+                    doLogout("Su sesión ha expirado. Ingrese nuevamente.")
                 }
-            }
-
-            if (exitoso) {
+            } catch (e: Exception) {
                 binding.loader.visibility = View.GONE
-                binding.welcomeText.text = "Usuario: ${sessionManager.getUsername()}"
-                validarPermisosAdmin()
-            } else {
-                doLogout("Error de verificación de API tras $MAX_INTENTOS intentos.")
+                binding.tvStatusError.apply {
+                    visibility = View.VISIBLE
+                    text = "Sin conexión con servidor Raloy"
+                }
             }
         }
     }
 
-    private fun validarPermisosAdmin() {
-        val email = sessionManager.getUsername() ?: ""
+    private fun validarAdmin(email: String) {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val res = withContext(Dispatchers.IO) { RetrofitClient.instance.checkIsAdmin(AccessRequest(email)) }
@@ -100,10 +85,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     }
 
     private fun setupRecyclerView() {
-        val adapter = CortesHomeAdapter(
-            onItemSelected = { _: CorteData -> },
-            onActionClick = { _: CorteData, _: Int -> }
-        )
+        val adapter = CortesHomeAdapter(onItemSelected = { _: CorteData -> }, onActionClick = { _: CorteData, _: Int -> })
         binding.rvCortesAbiertos.layoutManager = LinearLayoutManager(requireContext())
         binding.rvCortesAbiertos.adapter = adapter
     }
