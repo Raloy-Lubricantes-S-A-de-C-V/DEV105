@@ -10,6 +10,7 @@ import com.example.myapplication.R
 import com.example.myapplication.data.network.*
 import com.example.myapplication.data.session.SessionManager
 import com.example.myapplication.databinding.FragmentHomeBinding
+import com.example.myapplication.ui.corte.CreateCorteFragment
 import com.example.myapplication.ui.login.LoginFragment
 import com.example.myapplication.ui.rol.CreateRolFragment
 import kotlinx.coroutines.*
@@ -17,7 +18,6 @@ import kotlinx.coroutines.*
 class HomeFragment : Fragment(R.layout.fragment_home) {
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
-
     private lateinit var sessionManager: SessionManager
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -25,81 +25,89 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         _binding = FragmentHomeBinding.bind(view)
         sessionManager = SessionManager(requireContext())
 
-        setupToolbar()
+        // 1. Configurar Toolbar con el nombre del módulo (Estilo Roles)
+        binding.toolbar.title = "Panel Principal - Raloy"
+        setupMenu()
+
         setupRecyclerView()
-        iniciarValidacionSesion()
+
+        // 2. Botón de Actualizar manual
+        binding.btnRefreshCortes.setOnClickListener { cargarCortes() }
+
+        // 3. Carga inicial de datos y validación de permisos
+        validarYRefrescar()
     }
 
-    private fun setupToolbar() {
-        // ✅ SOLUCIÓN AL MENÚ: Inflamos el menú manualmente en el toolbar del Fragment
+    private fun setupMenu() {
         binding.toolbar.inflateMenu(R.menu.home_menu)
         binding.toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                R.id.action_logout -> { doLogout("Sesión finalizada"); true }
-                R.id.create_rol -> {
-                    parentFragmentManager.beginTransaction()
-                        .replace(R.id.main_container, CreateRolFragment())
-                        .addToBackStack(null).commit()
-                    true
-                }
+                R.id.action_logout -> { logout(); true }
+                R.id.create_rol -> { nav(CreateRolFragment()); true }
+                R.id.create_corte -> { nav(CreateCorteFragment()); true }
                 else -> false
             }
         }
     }
 
-    private fun iniciarValidacionSesion() {
+    private fun validarYRefrescar() {
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
             binding.loader.visibility = View.VISIBLE
             try {
-                val response = withContext(Dispatchers.IO) { RetrofitClient.instance.verificarSesion() }
-
-                if (response.isSuccessful) {
+                val res = withContext(Dispatchers.IO) { RetrofitClient.instance.verificarSesion() }
+                if (res.isSuccessful) {
                     binding.loader.visibility = View.GONE
-                    binding.welcomeText.text = "Bienvenido, ${sessionManager.getUsername()}"
-                    // ✅ ACTIVAR DISEÑO: Mostramos las secciones ocultas
-                    binding.sectionCheckIn.visibility = View.VISIBLE
-                    validarAdmin(sessionManager.getUsername() ?: "")
+                    binding.welcomeText.text = "Bienvenido: ${sessionManager.getUsername()}"
+                    verificarAdmin(sessionManager.getUsername() ?: "")
                 } else {
-                    // ✅ TOKEN VENCIDO: Cierre automático
-                    doLogout("Su sesión ha expirado. Ingrese nuevamente.")
+                    logout()
                 }
             } catch (e: Exception) {
                 binding.loader.visibility = View.GONE
-                binding.tvStatusError.apply {
-                    visibility = View.VISIBLE
-                    text = "Sin conexión con servidor Raloy"
-                }
             }
         }
     }
 
-    private fun validarAdmin(email: String) {
+    private fun verificarAdmin(user: String) {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val res = withContext(Dispatchers.IO) { RetrofitClient.instance.checkIsAdmin(AccessRequest(email)) }
+                val res = withContext(Dispatchers.IO) { RetrofitClient.instance.checkIsAdmin(AccessRequest(user)) }
                 if (res.isSuccessful && res.body()?.access == true) {
                     binding.sectionCortesAbiertos.visibility = View.VISIBLE
+                    cargarCortes()
+                }
+            } catch (e: Exception) { }
+        }
+    }
+
+    private fun cargarCortes() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val res = withContext(Dispatchers.IO) { RetrofitClient.instance.getCortesSource(SourceRequest("{}")) }
+                if (res.isSuccessful && res.body() != null) {
+                    (binding.rvCortesAbiertos.adapter as? CortesHomeAdapter)?.updateData(res.body()!!.data)
                 }
             } catch (e: Exception) { }
         }
     }
 
     private fun setupRecyclerView() {
-        val adapter = CortesHomeAdapter(onItemSelected = { _: CorteData -> }, onActionClick = { _: CorteData, _: Int -> })
         binding.rvCortesAbiertos.layoutManager = LinearLayoutManager(requireContext())
-        binding.rvCortesAbiertos.adapter = adapter
+        binding.rvCortesAbiertos.adapter = CortesHomeAdapter(
+            onItemSelected = { },
+            onActionClick = { _, _ -> }
+        )
     }
 
-    private fun doLogout(msj: String) {
+    private fun nav(fragment: Fragment) {
+        parentFragmentManager.beginTransaction().replace(R.id.main_container, fragment)
+            .addToBackStack(null).commit()
+    }
+
+    private fun logout() {
         sessionManager.clearSession()
-        Toast.makeText(requireContext(), msj, Toast.LENGTH_LONG).show()
-        parentFragmentManager.beginTransaction()
-            .replace(R.id.main_container, LoginFragment())
-            .commitAllowingStateLoss()
+        parentFragmentManager.beginTransaction().replace(R.id.main_container, LoginFragment()).commit()
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
+    override fun onDestroyView() { super.onDestroyView(); _binding = null }
 }

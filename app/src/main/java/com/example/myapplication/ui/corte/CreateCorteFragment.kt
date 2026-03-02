@@ -1,6 +1,7 @@
 package com.example.myapplication.ui.corte
 
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.fragment.app.Fragment
@@ -10,74 +11,65 @@ import com.example.myapplication.R
 import com.example.myapplication.data.network.*
 import com.example.myapplication.data.session.SessionManager
 import com.example.myapplication.databinding.FragmentCreateCorteBinding
-import kotlinx.coroutines.*
-import java.text.SimpleDateFormat
-import java.util.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class CreateCorteFragment : Fragment(R.layout.fragment_create_corte) {
     private var _binding: FragmentCreateCorteBinding? = null
     private val binding get() = _binding!!
-    private val adapter = CorteAdapter(emptyList()) { seleccionar(it) }
-    private var selectedId: Int? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentCreateCorteBinding.bind(view)
+        val session = SessionManager(requireContext())
 
-        binding.rvCortes.layoutManager = LinearLayoutManager(context)
-        binding.rvCortes.adapter = adapter
+        binding.toolbarCorte.setNavigationOnClickListener { parentFragmentManager.popBackStack() }
+        binding.rvCortes.layoutManager = LinearLayoutManager(requireContext())
 
-        reiniciarForm()
-        cargar()
-
-        binding.btnGuardarCorte.setOnClickListener { ejecutar("C") }
-        binding.btnEliminarCorte.setOnClickListener { ejecutar("D") }
-    }
-
-    private fun generarSugerencia(): String {
-        val cal = Calendar.getInstance()
-        val fecha = SimpleDateFormat("dd/MM/yy", Locale.getDefault()).format(cal.time)
-        val turno = if (cal.get(Calendar.HOUR_OF_DAY) < 13) "1/2" else "2/2"
-        return "Corte $fecha - $turno"
-    }
-
-    private fun cargar() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                val res = withContext(Dispatchers.IO) { RetrofitClient.instance.getCortesSource(SourceRequest("Carga")) }
-                if (res.isSuccessful) adapter.updateData(res.body()?.data ?: emptyList())
-            } catch (e: Exception) { }
+        binding.btnGuardarCorte.setOnClickListener {
+            val desc = binding.etDescription.text.toString()
+            if (desc.isNotEmpty()) {
+                ejecutarEscritura(CorteRequest(user = session.getUsername() ?: "", i = "C", description = desc))
+            }
         }
+
+        binding.tvActualizarLabel.setOnClickListener { consultarTabla() }
+        consultarTabla()
     }
 
-    private fun ejecutar(op: String) {
+    private fun ejecutarEscritura(request: CorteRequest) {
         viewLifecycleOwner.lifecycleScope.launch {
             binding.loader.visibility = View.VISIBLE
             try {
-                val request = CorteRequest(id = selectedId, user = SessionManager(requireContext()).getUsername()!!, i = op, description = binding.etDescription.text.toString(), state = 1)
+                Log.d("CORTE_API", "Enviando: $request")
                 val res = withContext(Dispatchers.IO) { RetrofitClient.instance.escribirCorte(request) }
                 if (res.isSuccessful) {
-                    delay(1000)
-                    reiniciarForm()
-                    cargar()
+                    Log.d("CORTE_API", "Respuesta exitosa: ${res.body()}")
+                    binding.etDescription.text?.clear()
+                    consultarTabla()
                 }
+            } catch (e: Exception) {
+                Log.e("CORTE_API", "Fallo en ejecución: ${e.message}")
             } finally {
-                if (_binding != null) binding.loader.visibility = View.GONE
+                binding.loader.visibility = View.GONE
             }
         }
     }
 
-    private fun seleccionar(c: CorteData) {
-        selectedId = c.id
-        binding.etDescription.setText(c.description)
-        binding.btnGuardarCorte.text = "ACTUALIZAR"
-        binding.btnEliminarCorte.visibility = View.VISIBLE
+    private fun consultarTabla() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val res = withContext(Dispatchers.IO) { RetrofitClient.instance.getCortesSource(SourceRequest("{}")) }
+                if (res.isSuccessful && res.body() != null) {
+                    Log.d("CORTE_API", "Cortes en tabla: ${res.body()?.count}")
+                    // Aquí se asignaría el adaptador: binding.rvCortes.adapter = ...
+                }
+            } catch (e: Exception) {
+                Log.e("CORTE_API", "Error al consultar tabla")
+            }
+        }
     }
 
-    private fun reiniciarForm() {
-        selectedId = null
-        binding.etDescription.setText(generarSugerencia())
-        binding.btnGuardarCorte.text = "CREAR CORTE"
-        binding.btnEliminarCorte.visibility = View.GONE
-    }
+    override fun onDestroyView() { super.onDestroyView(); _binding = null }
 }

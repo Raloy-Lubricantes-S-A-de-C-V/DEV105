@@ -90,4 +90,6 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.androidx.recyclerview)
     implementation(libs.google.material)
+    //
+    implementation(libs.androidx.swiperefreshlayout)
 }

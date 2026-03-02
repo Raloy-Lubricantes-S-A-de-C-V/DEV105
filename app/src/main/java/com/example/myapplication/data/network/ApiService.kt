@@ -5,30 +5,21 @@ import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.GET
 
-// --- MODELOS DE DATOS ---
-data class AuthAppRequest(
-    val username: String, // ✅ Sincronizado con CURL de producción
-    val password: String
-)
+// Modelos de Autenticación
+data class AuthAppRequest(val username: String, val password: String)
+data class AuthResponse(val data: AuthData?, val status: Int)
+data class AuthData(val error: Boolean, val key: String, val msj: String)
 
-data class AuthResponse(
-    val data: AuthData?,  // ✅ Mapeo de { "data": { "key": "..." } }
-    val status: Int
-)
-
-data class AuthData(
-    val error: Boolean,
-    val key: String,      // ✅ Token real
-    val msj: String
-)
-
+// Modelos de Permisos
 data class AccessRequest(val user: String)
 data class AccessResponse(val access: Boolean, val msj: String, val status: Int)
 
+// Modelos de Roles
 data class RolRequest(val user: String, val i: String, val sys: Int = 0, val admin: Int = 0, val normal: Int = 0)
-data class RolSourceResponse(val count: Int, val data: List<RolData>, val error: Boolean, val msj: String, val status: Int)
 data class RolData(val user: String, val admin: Int, val normal: Int, val sys: Int)
+data class RolSourceResponse(val count: Int, val data: List<RolData>, val error: Boolean, val msj: String, val status: Int)
 
+// Modelos de Cortes
 data class CorteRequest(val id: Int? = null, val user: String, val i: String, val description: String? = null, val state: Int? = null, val reopen: Int = 0)
 data class CorteData(val id: Int, val user: String, val description: String, val start_day: String?, val end_date: String?, val state: Int, val reopen: Int)
 data class CorteSourceResponse(val count: Int, val data: List<CorteData>, val error: Boolean, val msj: String, val status: Int)
@@ -39,13 +30,13 @@ interface ApiService {
     @POST("autenticate")
     suspend fun autenticateApp(@Body request: AuthAppRequest): Response<AuthResponse>
 
-    @GET("verificar-sesion") // ✅ GET sin Body para evitar error en Flask
+    @GET("verificar-sesion")
     suspend fun verificarSesion(): Response<AccessResponse>
 
     @POST("rol/source/is_admin")
     suspend fun checkIsAdmin(@Body request: AccessRequest): Response<AccessResponse>
 
-    @POST("rol/source/is_sys")
+    @POST("rol/source/is_sys") // ✅ Solución al error de CreateRolFragment
     suspend fun checkIsSys(@Body request: AccessRequest): Response<AccessResponse>
 
     @POST("rol/source")
