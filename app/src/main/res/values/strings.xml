@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">CheckinRem</string>
+    <string name="app_name">CheckIn Rem</string>
     <string name="invalid_username">Usuario inválido</string>
     <string name="invalid_password">Contraseña inválida</string>
     <string name="login_failed">Error de autenticación</string>
